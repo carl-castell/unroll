@@ -6,6 +6,8 @@ import UnrollCore
 /// outside Photos, so it isn't checked here.
 ///
 /// Photos comes to the front for the import, so its duplicate dialog is seen when it asks.
+/// Afterwards the app that was in front before (usually the terminal) comes back, unless the
+/// user has switched to another app in the meantime.
 /// The first time, macOS asks whether the terminal app may control Photos (Automation).
 public struct AppleScriptPhotosImporter: PhotosImporting {
     /// With the check, Photos skips items it already has, asking first in its own dialog; that
@@ -24,12 +26,19 @@ public struct AppleScriptPhotosImporter: PhotosImporting {
         "  repeat with p in (rest of argv)",
         "    set end of theFiles to (POSIX file (p as text)) as alias",
         "  end repeat",
+        "  set previousApp to path to frontmost application as text",
         "  tell application \"Photos\"",
         "    activate",
         "    with timeout of 14400 seconds",
         "      import theFiles skip check duplicates skipCheck",
         "    end timeout",
         "  end tell",
+        "  try",
+        "    set currentApp to path to frontmost application as text",
+        "    if currentApp contains \"Photos.app\" and previousApp does not contain \"Photos.app\" then",
+        "      tell application previousApp to activate",
+        "    end if",
+        "  end try",
         "  return count of theFiles",
         "end run",
     ]
