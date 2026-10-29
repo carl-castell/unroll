@@ -23,7 +23,7 @@ struct StatusScreen: Screen {
                 return [
                     task.name,
                     "\(connected.contains(task.device.id) ? "✓" : "✗") \(task.device.name)",
-                    "\(destination ? "✓" : "✗") \(task.destination.volumeName)",
+                    "\(destination ? "✓" : "✗") \(Format.destination(task.destination, resolver: app.resolver))",
                     task.lastRun?.formatted(date: .abbreviated, time: .shortened) ?? "never",
                 ]
             }
@@ -34,7 +34,7 @@ struct StatusScreen: Screen {
                   let index = try? SQLiteIndex.openExisting(destinationRoot: destination.root, readOnly: true),
                   let runs = try? index.runs(limit: 5), !runs.isEmpty else { continue }
             let total = (try? index.meta().itemCount) ?? 0
-            print(app.noora.format("\n\(.primary(task.name)) \(.muted("— \(total) files in \(VolumeResolver.displayPath(destination.root))"))"))
+            print(app.noora.format("\n\(.primary(task.name)) \(.muted("— \(total) files in \(Format.destination(destination.root, volumeName: destination.volumeName))"))"))
             app.noora.table(
                 headers: ["Run", "Imported", "Size", "Result"],
                 rows: runs.map { run in
@@ -75,7 +75,7 @@ struct RebuildScreen: Screen {
             app.showError(SyncError.destinationNotConnected(volumeName: task.destination.volumeName).message)
             return .mainMenu
         }
-        let path = VolumeResolver.displayPath(destination.root)
+        let path = Format.destination(destination.root, volumeName: destination.volumeName)
         let confirmed = app.noora.yesOrNoChoicePrompt(
             question: "Rebuild the index of \"\(task.name)\" from the files in \(path)?", defaultAnswer: false,
             description: "Files are only read, never changed. The run history is reset and the next run asks once."

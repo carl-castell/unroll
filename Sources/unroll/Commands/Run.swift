@@ -42,7 +42,7 @@ struct Run: AsyncParsableCommand {
             devices: ICCDeviceBrowser(), destinations: VolumeResolver(), indexes: SQLiteIndexProvider(),
             writers: DestinationStoreOpener()
         )
-        let renderer = PlainRenderer()
+        let renderer = PlainRenderer(destinationLabel: Format.destination(task.destination, resolver: VolumeResolver()))
         var plan: SyncPlan
         do {
             plan = try await engine.makePlan(for: task, unlockTimeout: .seconds(unlockTimeout), events: { renderer.handle($0) })
@@ -116,7 +116,7 @@ struct Run: AsyncParsableCommand {
 
     static func question(for reason: ConfirmationReason, plan: SyncPlan, task: SyncTask) -> String {
         let what = "Copy \(plan.items.count) files (\(Format.bytes(plan.items.reduce(0) { $0 + $1.item.size }))) "
-            + "from \"\(task.device.name)\" to \(VolumeResolver.displayPath(plan.destinationRoot))?"
+            + "from \"\(task.device.name)\" to \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))?"
         return switch reason {
         case .firstRun: "This is the first run of \"\(task.name)\". \(what)"
         case .destinationOrDeviceChanged: "The task's device or destination changed. \(what)"

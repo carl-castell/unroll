@@ -34,11 +34,11 @@ struct SyncScreen: Screen {
 
     static func makePlan(for task: SyncTask, app: AppContext) async throws -> SyncPlan {
         let engine = app.engine
-        let volume = task.destination.volumeName
+        let label = Format.destination(task.destination, resolver: app.resolver)
         let destination = try await app.noora.progressStep(
-            message: "Checking destination \"\(volume)\"",
-            successMessage: "Destination \"\(volume)\" is connected",
-            errorMessage: "Destination \"\(volume)\" isn't available",
+            message: "Checking destination \(label)",
+            successMessage: "Destination \(label) is connected",
+            errorMessage: "Destination \(label) isn't available",
             showSpinner: true
         ) { @Sendable _ in try engine.checkDestination(for: task, events: { _ in }) }
 
@@ -111,7 +111,7 @@ struct PreviewScreen: Screen {
             rows: summary.months.map { [String(format: "%04d-%02d", $0.year, $0.month), "\($0.count)", Format.bytes($0.bytes)] }
                 + [["Total", "\(summary.newCount)", Format.bytes(summary.newBytes)]]
         )
-        print(app.noora.format("\(.muted("Into")) \(VolumeResolver.displayPath(plan.destinationRoot))"))
+        print(app.noora.format("\(.muted("Into")) \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))"))
         let folders = summary.folders
         print(app.noora.format("\(.muted("Folders")) \(folders.prefix(6).joined(separator: ", "))\(folders.count > 6 ? " and \(folders.count - 6) more" : "")"))
 
@@ -153,7 +153,7 @@ enum TransferFlow {
             app.noora.info(.alert("\(confirmationTitle(reason, task: task))", takeaways: [
                 "Task: \(task.name)",
                 "From: \(task.device.name)",
-                "To: \(VolumeResolver.displayPath(plan.destinationRoot)) (\(plan.destination.volumeName))",
+                "To: \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))",
                 "\(plan.items.count) files, \(Format.bytes(totalBytes))",
             ]))
             guard app.noora.yesOrNoChoicePrompt(question: "Copy them now?", defaultAnswer: true) else {
@@ -217,7 +217,7 @@ enum TransferFlow {
     }
 
     private static func showSummary(_ summary: SyncSummary, plan: SyncPlan, app: AppContext) {
-        var details: [TerminalText] = ["Into \(VolumeResolver.displayPath(plan.destinationRoot))"]
+        var details: [TerminalText] = ["Into \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))"]
         if summary.duplicates > 0 { details.append("\(summary.duplicates) identical to files already there; not copied again") }
         if summary.unavailable > 0 { details.append("\(summary.unavailable) not available on the device; see Help → Troubleshooting") }
         if summary.notAttempted > 0 { details.append("\(summary.notAttempted) not copied yet; run the task again to continue") }

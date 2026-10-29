@@ -29,7 +29,7 @@ struct RebuildIndex: AsyncParsableCommand {
             printError(SyncError.destinationNotConnected(volumeName: task.destination.volumeName).message)
             throw UnrollExit.destinationMissing
         }
-        let path = VolumeResolver.displayPath(destination.root)
+        let path = Format.destination(destination.root, volumeName: destination.volumeName)
         guard FileManager.default.fileExists(atPath: destination.root.path) else {
             printError("The destination folder \(path) doesn't exist yet; there is nothing to rebuild.")
             throw UnrollExit.invalidTask

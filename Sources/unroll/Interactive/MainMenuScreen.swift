@@ -55,7 +55,7 @@ struct MainMenuScreen: Screen {
         let destination = app.resolver.resolve(task.destination) != nil
         let device = await app.browser.connectedDevices().contains { $0.id == task.device.id }
         func mark(_ ok: Bool) -> TerminalText.Component { ok ? .success("✓") : .danger("✗") }
-        let status: TerminalText = "\(.muted("Destination")) \"\(task.destination.volumeName)\" \(mark(destination))   \(.muted("Device")) \"\(task.device.name)\" \(mark(device))"
+        let status: TerminalText = "\(.muted("Destination")) \(Format.destination(task.destination, resolver: app.resolver)) \(mark(destination))   \(.muted("Device")) \"\(task.device.name)\" \(mark(device))"
         print(app.noora.format(status))
     }
 

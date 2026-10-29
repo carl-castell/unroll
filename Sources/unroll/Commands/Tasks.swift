@@ -27,8 +27,8 @@ struct Tasks: AsyncParsableCommand {
             }
             let resolver = VolumeResolver()
             for task in tasks {
-                let destination = resolver.resolve(task.destination).map { VolumeResolver.displayPath($0.root) }
-                    ?? "\(task.destination.volumeName): /\(task.destination.path) (not connected)"
+                let connected = resolver.resolve(task.destination) != nil
+                let destination = Format.destination(task.destination, resolver: resolver) + (connected ? "" : ", not connected")
                 print("\(task.name)")
                 print("  device:      \(task.device.name)")
                 print("  destination: \(destination)")
@@ -97,7 +97,7 @@ struct Tasks: AsyncParsableCommand {
             )
             tasks.append(task)
             try store.saveTasks(tasks)
-            print("Created \"\(task.name)\": \(deviceInfo.name) → \(folder.path) (volume \"\(target.volumeName)\")")
+            print("Created \"\(task.name)\": \(deviceInfo.name) → \(Format.destination(folder, volumeName: target.volumeName))")
             print("Preview it with: unroll run \"\(task.name)\" --dry-run")
         }
 

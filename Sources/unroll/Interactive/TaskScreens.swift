@@ -65,7 +65,7 @@ struct ManageTasksScreen: Screen {
             let choices: [Choice<Action>] = [
                 Choice("Name: \(task.name)", .name),
                 Choice("Device: \(task.device.name)", .device),
-                Choice("Destination: \(task.destination.volumeName): /\(task.destination.path)", .destination),
+                Choice("Destination: \(Format.destination(task.destination, resolver: app.resolver))", .destination),
                 Choice("Folder structure: \(task.folderTemplate)", .template),
                 Choice("Original vs. edited: \(Wizard.label(task.versions))", .versions),
                 Choice("Add to Apple Photos: \(task.addToPhotos ? "yes" : "no")", .photos),
@@ -258,7 +258,7 @@ enum Wizard {
             choices.append(Choice("Back", .back))
 
             switch app.noora.menu(
-                "Choose the destination folder", choices, title: "\(VolumeResolver.displayPath(current))",
+                "Choose the destination folder", choices, title: "\(Format.destination(current, volumeName: volume.name))",
                 filterable: subfolders.count > 10
             ) {
             case .use: return current
@@ -395,7 +395,7 @@ enum Wizard {
     static func describe(_ task: SyncTask, folder: URL) -> [TerminalText] {
         [
             "Device: \(task.device.name)",
-            "Destination: \(VolumeResolver.displayPath(folder)) on \"\(task.destination.volumeName)\"",
+            "Destination: \(Format.destination(folder, volumeName: task.destination.volumeName))",
             "Folder structure: \(task.folderTemplate)",
             "Versions: \(label(task.versions))",
             "Add to Apple Photos: \(task.addToPhotos ? "yes" : "no")",

@@ -4,10 +4,15 @@ import UnrollStore
 
 /// Line-oriented output without colors or animation, for pipes, scripts and Shortcuts.
 struct PlainRenderer: Sendable {
+    /// How to show the destination, e.g. "~/unroll-test (Macintosh HD)"; the core reports only the drive.
+    var destinationLabel: String?
+
     func handle(_ event: SyncEvent) {
         switch event {
         case .checkStarted, .listingProgress, .fileStarted, .fileProgress:
             break
+        case .checkPassed(.destination, let detail):
+            print("✓ Destination: \(destinationLabel ?? detail)")
         case .checkPassed(let check, let detail):
             print("✓ \(Self.label(check)): \(detail)")
         case .checkFailed(let check, _):
@@ -51,7 +56,7 @@ struct PlainRenderer: Sendable {
             let label = String(format: "%04d-%02d", month.year, month.month)
             print("  \(label)  \(String(month.count).leftPadded(to: 6))  \(Format.bytes(month.bytes).leftPadded(to: 10))")
         }
-        print("\nDestination folders in \(VolumeResolver.displayPath(plan.destinationRoot)):")
+        print("\nDestination folders in \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName)):")
         for folder in summary.folders.prefix(listItems ? .max : 12) {
             print("  \(folder)")
         }
@@ -96,6 +101,27 @@ struct PlainRenderer: Sendable {
 enum Format {
     static func bytes(_ count: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
+    }
+
+    /// "~/unroll-test", "/Volumes/Photos-SSD/Photos".
+    static func path(_ url: URL) -> String {
+        let path = VolumeResolver.displayPath(url)
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path == home { return "~" }
+        return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+    }
+
+    /// The folder, with its drive in brackets: "~/unroll-test (Macintosh HD)".
+    static func destination(_ url: URL, volumeName: String) -> String {
+        "\(path(url)) (\(volumeName))"
+    }
+
+    /// Like `destination(_:volumeName:)`; when the drive isn't connected, the folder's path on the drive.
+    static func destination(_ destination: Destination, resolver: VolumeResolver) -> String {
+        if let resolved = resolver.resolve(destination) {
+            return self.destination(resolved.root, volumeName: destination.volumeName)
+        }
+        return "/\(destination.path) (\(destination.volumeName))"
     }
 }
 
