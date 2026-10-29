@@ -20,12 +20,14 @@ struct NewTaskScreen: Screen {
         let template = Wizard.pickFolderTemplate(app, current: settings.defaultFolderTemplate)
         let versions = Wizard.pickVersions(app, current: settings.defaultVersions)
         let photos = Wizard.askAddToPhotos(app, current: false)
+        let photosChecksDuplicates = photos ? Wizard.askPhotosDuplicateCheck(app, current: true) : true
         let notify = Wizard.askNotify(app, current: settings.defaultNotify)
         let name = Wizard.askName(app, suggested: "\(device.name) → \(destination.volumeName)", excluding: nil)
 
         let task = SyncTask(
             name: name, device: .init(id: device.id, name: device.name), destination: destination,
-            folderTemplate: template, versions: versions, addToPhotos: photos, notify: notify
+            folderTemplate: template, versions: versions, addToPhotos: photos,
+            photosChecksDuplicates: photosChecksDuplicates, notify: notify
         )
         app.noora.info(.alert("New task \"\(name)\"", takeaways: Wizard.describe(task, folder: folder)))
         guard app.noora.yesOrNoChoicePrompt(question: "Save this task?", defaultAnswer: true) else {
@@ -51,14 +53,14 @@ struct NewTaskScreen: Screen {
 /// Edits one task's settings. Back returns to the task's More… menu.
 struct EditTaskScreen: Screen {
     enum Action: Equatable {
-        case name, device, destination, template, versions, photos, notify, back
+        case name, device, destination, template, versions, photos, photosDuplicates, notify, back
     }
 
     let taskID: UUID
 
     func run(_ app: AppContext) async -> Next {
         while var task = app.task(taskID) {
-            let choices: [Choice<Action>] = [
+            var choices: [Choice<Action>] = [
                 Choice("Name: \(task.name)", .name),
                 Choice("Device: \(task.device.name)", .device),
                 Choice("Destination: \(Format.destination(task.destination, resolver: app.resolver))", .destination),
@@ -68,6 +70,9 @@ struct EditTaskScreen: Screen {
                 Choice("Notification when done: \(task.notify ? "yes" : "no")", .notify),
                 Choice("Back", .back),
             ]
+            if task.addToPhotos {
+                choices.insert(Choice("Let Photos check for duplicates: \(task.photosChecksDuplicates ? "yes" : "no")", .photosDuplicates), at: 6)
+            }
             switch app.noora.menu("Edit \"\(task.name)\"", choices) {
             case .name:
                 task.name = Wizard.askName(app, suggested: task.name, excluding: task.id)
@@ -84,6 +89,8 @@ struct EditTaskScreen: Screen {
                 task.versions = Wizard.pickVersions(app, current: task.versions)
             case .photos:
                 task.addToPhotos = Wizard.askAddToPhotos(app, current: task.addToPhotos)
+            case .photosDuplicates:
+                task.photosChecksDuplicates = Wizard.askPhotosDuplicateCheck(app, current: task.photosChecksDuplicates)
             case .notify:
                 task.notify = Wizard.askNotify(app, current: task.notify)
             case .back:
@@ -352,6 +359,13 @@ enum Wizard {
         )
     }
 
+    static func askPhotosDuplicateCheck(_ app: AppContext, current: Bool) -> Bool {
+        app.noora.yesOrNoChoicePrompt(
+            question: "Let Photos check for photos it already has?", defaultAnswer: current,
+            description: "Recommended if your library already has photos from this iPhone. When Photos finds duplicates, it asks what to do and waits for your answer, also in runs from Shortcuts. Without the check, those photos are added again."
+        )
+    }
+
     static func askNotify(_ app: AppContext, current: Bool) -> Bool {
         app.noora.yesOrNoChoicePrompt(
             question: "Show a notification when a sync finishes?", defaultAnswer: current,
@@ -380,7 +394,7 @@ enum Wizard {
             "Destination: \(Format.destination(folder, volumeName: task.destination.volumeName))",
             "Folder structure: \(task.folderTemplate)",
             "Versions: \(label(task.versions))",
-            "Add to Apple Photos: \(task.addToPhotos ? "yes" : "no")",
+            "Add to Apple Photos: \(task.addToPhotos ? (task.photosChecksDuplicates ? "yes, Photos checks for duplicates" : "yes, without duplicate check") : "no")",
             "Notification: \(task.notify ? "yes" : "no")",
         ]
     }

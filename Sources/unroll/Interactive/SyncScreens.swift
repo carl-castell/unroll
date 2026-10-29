@@ -174,7 +174,7 @@ enum TransferFlow {
                 errorMessage: "Copying failed",
                 showSpinner: true
             ) { @Sendable update in
-                let photos: (any PhotosImporting)? = task.addToPhotos ? AppleScriptPhotosImporter() : nil
+                let photos: (any PhotosImporting)? = task.addToPhotos ? AppleScriptPhotosImporter(checksDuplicates: task.photosChecksDuplicates) : nil
                 let work = Task {
                     try await engine.execute(plan, confirmed: true, photos: photos) { event in
                         log?.record(event)
@@ -187,7 +187,17 @@ enum TransferFlow {
                     tracker.markStopping()
                     update(tracker.currentLine())
                 }
-                defer { interrupt.stop() }
+                // Keeps the clock running while Photos imports, which sends no events.
+                let ticker = Task {
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(1))
+                        if tracker.isAddingToPhotos { update(tracker.currentLine()) }
+                    }
+                }
+                defer {
+                    interrupt.stop()
+                    ticker.cancel()
+                }
                 return try await work.value
             }
         } catch {
@@ -265,6 +275,8 @@ final class TransferTracker: @unchecked Sendable {
     private var currentName = ""
     private var lastLine = ContinuousClock.now - .seconds(1)
     private var stopping = false
+    /// Set while Photos imports: how many files, and since when.
+    private var photos: (files: Int, since: ContinuousClock.Instant)?
 
     init(totalFiles: Int, totalBytes: Int64) {
         self.totalFiles = totalFiles
@@ -287,9 +299,9 @@ final class TransferTracker: @unchecked Sendable {
                 doneBytes += entry.item.size
                 currentBytes = 0
             case .photosImportStarted(let files):
-                return "Adding \(files) files to Apple Photos…"
-            case .photosImportProgress(let done, let total):
-                return "Adding to Apple Photos… \(done) of \(total)"
+                photos = (files, .now)
+            case .photosImportProgress:
+                return nil
             default:
                 return nil
             }
@@ -307,7 +319,17 @@ final class TransferTracker: @unchecked Sendable {
         lock.withLock { line() }
     }
 
+    /// True while Photos imports, so the caller can redraw the elapsed time.
+    var isAddingToPhotos: Bool {
+        lock.withLock { photos != nil }
+    }
+
     private func line() -> String {
+        // Photos doesn't report progress to scripts, so show the time spent instead.
+        if let photos {
+            let elapsed = Self.duration(Format.seconds(photos.since.duration(to: .now)))
+            return "Adding \(photos.files) files to Apple Photos… \(elapsed)"
+        }
         let bytes = doneBytes + currentBytes
         let fraction = min(Double(bytes) / Double(totalBytes), 1)
         let filled = Int(fraction * 20)

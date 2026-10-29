@@ -13,7 +13,7 @@ struct PlainRenderer: RunRenderer {
         case .checkStarted, .listingProgress, .fileStarted, .fileProgress, .photosImportProgress:
             break
         case .photosImportStarted(let files):
-            print("\nAdding \(files) files to Apple Photos…")
+            print("\nAdding \(files) files to Apple Photos… (Photos doesn't report progress; this can take a while)")
         case .photosImportFinished(let result):
             if let error = result.error {
                 printError(PhotosText.describe(error))

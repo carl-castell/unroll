@@ -22,8 +22,9 @@ public struct PhotosImportResult: Sendable, Equatable {
 }
 
 extension SyncEngine {
-    /// Files per Photos import call. Small enough to show progress, large enough to be quick.
-    static let photosBatchSize = 100
+    /// Files per Photos import call. Each call is one entry under Photos → Imports, so a run is
+    /// normally a single import; only very large runs are split, to keep each call manageable.
+    static let photosBatchSize = 2_000
 
     /// Adds this run's imported files, and any left over from earlier runs, to Photos.
     /// Live Photo pairs stay in the same batch so Photos keeps them together. Edit data (AAE)

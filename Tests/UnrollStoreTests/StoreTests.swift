@@ -65,6 +65,23 @@ struct TaskStoreTests {
         #expect(json.contains("\"id\" : \"phone\""))
     }
 
+    /// Task files written before an option existed still load, with that option's default.
+    @Test func loadsOlderTaskFilesWithDefaults() throws {
+        let store = TaskStore(directory: try temporaryDirectory())
+        try FileManager.default.createDirectory(at: store.directory, withIntermediateDirectories: true)
+        let json = """
+            {"version": 1, "tasks": [{"id": "6F1C2B1E-0000-0000-0000-000000000000", "name": "Old",
+              "device": {"id": "p", "name": "p"},
+              "destination": {"kind": "local", "volumeUUID": "V", "volumeName": "S", "path": "Photos"},
+              "folderTemplate": "YYYY/YYYY-MM", "versions": "original", "addToPhotos": true, "notify": false}]}
+            """
+        try Data(json.utf8).write(to: store.tasksURL)
+        let task = try #require(try store.loadTasks().first)
+        #expect(task.addToPhotos)
+        #expect(task.photosChecksDuplicates)
+        #expect(task.confirmation == nil)
+    }
+
     @Test func honorsXDGConfigHome() {
         let url = TaskStore.defaultDirectory(environment: ["XDG_CONFIG_HOME": "/tmp/cfg"])
         #expect(url.path == "/tmp/cfg/unroll")

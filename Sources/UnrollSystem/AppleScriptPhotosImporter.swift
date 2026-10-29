@@ -7,19 +7,25 @@ import UnrollCore
 ///
 /// The first time, macOS asks whether the terminal app may control Photos (Automation).
 public struct AppleScriptPhotosImporter: PhotosImporting {
-    public init() {}
+    /// With the check, Photos skips items it already has, asking first in its own dialog; that
+    /// dialog waits for an answer, also in unattended runs. Without it, such items are added again.
+    let checksDuplicates: Bool
 
-    /// "skip check duplicates" avoids Photos' duplicate dialog, which would block an unattended run.
-    /// unroll imports each file only once, so this doesn't create duplicates.
+    public init(checksDuplicates: Bool) {
+        self.checksDuplicates = checksDuplicates
+    }
+
+    /// argv: "check" or "skip", then the file paths.
     static let script = [
         "on run argv",
+        "  set skipCheck to (item 1 of argv) is \"skip\"",
         "  set theFiles to {}",
-        "  repeat with p in argv",
+        "  repeat with p in (rest of argv)",
         "    set end of theFiles to (POSIX file (p as text)) as alias",
         "  end repeat",
         "  tell application \"Photos\"",
-        "    with timeout of 3600 seconds",
-        "      import theFiles skip check duplicates true",
+        "    with timeout of 14400 seconds",
+        "      import theFiles skip check duplicates skipCheck",
         "    end timeout",
         "  end tell",
         "  return count of theFiles",
@@ -28,7 +34,7 @@ public struct AppleScriptPhotosImporter: PhotosImporting {
 
     public func importFiles(_ files: [URL]) async throws(PhotosImportError) {
         guard !files.isEmpty else { return }
-        let result = await OSAScript.run(Self.script, arguments: files.map(\.path))
+        let result = await OSAScript.run(Self.script, arguments: [checksDuplicates ? "check" : "skip"] + files.map(\.path))
         guard result.status != 0 else { return }
         // -1743: not authorized to send Apple events; -1744: user consent would be required.
         if result.error.contains("-1743") || result.error.contains("-1744") {

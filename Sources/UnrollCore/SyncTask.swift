@@ -20,6 +20,9 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
     public var folderTemplate: FolderTemplate
     public var versions: VersionPolicy
     public var addToPhotos: Bool
+    /// Let Photos check for items it already has. It then asks what to do with duplicates,
+    /// which waits for an answer even in unattended runs.
+    public var photosChecksDuplicates: Bool
     public var notify: Bool
     public var lastRun: Date?
     /// Set when a run was confirmed; see `ConfirmationPolicy`.
@@ -33,6 +36,7 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
         folderTemplate: FolderTemplate = .default,
         versions: VersionPolicy = .original,
         addToPhotos: Bool = false,
+        photosChecksDuplicates: Bool = true,
         notify: Bool = false,
         lastRun: Date? = nil,
         confirmation: ConfirmationSnapshot? = nil
@@ -44,9 +48,31 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
         self.folderTemplate = folderTemplate
         self.versions = versions
         self.addToPhotos = addToPhotos
+        self.photosChecksDuplicates = photosChecksDuplicates
         self.notify = notify
         self.lastRun = lastRun
         self.confirmation = confirmation
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, device, destination, folderTemplate, versions, addToPhotos, photosChecksDuplicates, notify
+        case lastRun, confirmation
+    }
+
+    /// Options added in later versions fall back to their defaults, so older task files still load.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        device = try container.decode(DeviceRef.self, forKey: .device)
+        destination = try container.decode(Destination.self, forKey: .destination)
+        folderTemplate = try container.decodeIfPresent(FolderTemplate.self, forKey: .folderTemplate) ?? .default
+        versions = try container.decodeIfPresent(VersionPolicy.self, forKey: .versions) ?? .original
+        addToPhotos = try container.decodeIfPresent(Bool.self, forKey: .addToPhotos) ?? false
+        photosChecksDuplicates = try container.decodeIfPresent(Bool.self, forKey: .photosChecksDuplicates) ?? true
+        notify = try container.decodeIfPresent(Bool.self, forKey: .notify) ?? false
+        lastRun = try container.decodeIfPresent(Date.self, forKey: .lastRun)
+        confirmation = try container.decodeIfPresent(ConfirmationSnapshot.self, forKey: .confirmation)
     }
 
     /// Finds a task by exact name (case-insensitive) or by a unique ID prefix.
