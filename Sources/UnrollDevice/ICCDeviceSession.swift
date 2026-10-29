@@ -181,6 +181,60 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
     }
 }
 
+// MARK: Camera models
+
+/// A camera model found in a sample of the device's photos.
+public struct CameraModelSample: Sendable, Equatable {
+    public let model: String
+    /// Sampled photos taken with this model.
+    public let count: Int
+    /// When the newest of them was taken.
+    public let newest: Date?
+}
+
+extension ICCDeviceSession {
+    /// Reads the camera model of up to `limit` photos, spread evenly from oldest to newest, so
+    /// earlier iPhones show up too. Newest model first. Photos without a model (screenshots,
+    /// saved images) are only counted, in `withoutModel`. Stops early after `timeBudget`.
+    public func sampleCameraModels(
+        limit: Int, timeBudget: Duration = .seconds(20), progress: @escaping @Sendable (Int, Int) -> Void
+    ) async throws(DeviceError) -> (models: [CameraModelSample], withoutModel: Int) {
+        _ = try await listItems { _ in }
+        let photos = mediaFiles
+            .filter { Self.kind(of: $0) == .photo && !Self.isEdited($0) }
+            .sorted { ($0.creationDate ?? .distantPast) < ($1.creationDate ?? .distantPast) }
+        let picked: [ICCameraFile] = photos.count <= limit
+            ? photos
+            : (0 ..< limit).map { photos[$0 * (photos.count - 1) / max(limit - 1, 1)] }
+
+        let deadline = ContinuousClock.now + timeBudget
+        var counts: [String: (count: Int, newest: Date?)] = [:]
+        var withoutModel = 0
+        for (done, file) in picked.enumerated() {
+            if ContinuousClock.now > deadline { break }
+            progress(done, picked.count)
+            let model: String? = await withCheckedContinuation { continuation in
+                file.requestMetadataDictionary(options: nil) { metadata, _ in
+                    let tiff = metadata?["{TIFF}"] as? [String: Any]
+                    continuation.resume(returning: (tiff?["Model"] as? String)?.trimmingCharacters(in: .whitespaces))
+                }
+            }
+            if removed { throw .disconnected }
+            guard let model, !model.isEmpty else {
+                withoutModel += 1
+                continue
+            }
+            let entry = counts[model] ?? (0, nil)
+            let date = file.creationDate
+            counts[model] = (entry.count + 1, [entry.newest, date].compactMap { $0 }.max())
+        }
+        progress(picked.count, picked.count)
+        let models = counts.map { CameraModelSample(model: $0.key, count: $0.value.count, newest: $0.value.newest) }
+            .sorted { ($0.newest ?? .distantPast) > ($1.newest ?? .distantPast) }
+        return (models, withoutModel)
+    }
+}
+
 // MARK: Diagnostics
 
 extension ICCDeviceSession {

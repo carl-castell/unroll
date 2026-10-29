@@ -71,6 +71,8 @@ A sync task copies new photos and videos from one iPhone or iPad to one folder. 
 .IP \(bu 2
 \fBFolder structure\fR: date folders inside the destination, by default \fBYYYY/YYYY\-MM\fR (for example \fB2026/2026\-06\fR). Tokens: \fBYYYY\fR, \fBMM\fR, \fBDD\fR. Or no folders: all files directly in the destination folder (\fB\-\-folder\-template none\fR). When names repeat, as iPhone numbers do over the years, the later file gets \fB (1)\fR added.
 .IP \(bu 2
+\fBSeparate Other folder\fR: off by default. When on, only photos and videos taken with this iPhone's camera go into the folder structure. Everything else goes into \fBOther/YYYY\fR (or one \fBOther\fR folder without a structure): screenshots, screen recordings, images saved from apps or the web, and photos from other phones or cameras. unroll recognizes this iPhone's photos by the camera model stored in each file, for example "iPhone 15 Pro". While setting up, it reads the models from a sample of the photos on the iPhone and lets you tick which are yours; tick earlier iPhones too if their photos are on this one. A Live Photo's video and edit data always stay with their photo. On the command line: \fBunroll tasks add … \-\-camera\-model "iPhone 15 Pro"\fR.
+.IP \(bu 2
 \fBOriginal vs. edited\fR: originals only (default), the edited version where one exists, or both plus the edit data (AAE).
 .IP \(bu 2
 \fBAdd to Apple Photos\fR: off by default. See \fBunroll help photos\-referenced\fR.

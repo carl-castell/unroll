@@ -33,6 +33,9 @@ struct Tasks: AsyncParsableCommand {
                 print("  device:      \(task.device.name)")
                 print("  destination: \(destination)")
                 print("  folders:     \(task.folderTemplate)   versions: \(task.versions.rawValue)")
+                if let models = task.cameraModels {
+                    print("  other:       files not from \(models.joined(separator: ", ")) go into Other")
+                }
                 print("  last run:    \(task.lastRun?.formatted() ?? "never")")
             }
         }
@@ -64,6 +67,12 @@ struct Tasks: AsyncParsableCommand {
 
         @Option(help: "Which versions of edited photos to copy: original, edited or both.")
         var versions = VersionPolicy.original
+
+        @Option(
+            name: .customLong("camera-model"),
+            help: "A camera model of this device, e.g. \"iPhone 15 Pro\". Repeatable. When given, files from other cameras, screenshots and saved images go into Other."
+        )
+        var cameraModels: [String] = []
 
         @MainActor
         func run() async throws {
@@ -100,7 +109,8 @@ struct Tasks: AsyncParsableCommand {
                 device: .init(id: deviceInfo.id, name: deviceInfo.name),
                 destination: target,
                 folderTemplate: template,
-                versions: versions
+                versions: versions,
+                cameraModels: cameraModels.isEmpty ? nil : cameraModels
             )
             tasks.append(task)
             try store.saveTasks(tasks)

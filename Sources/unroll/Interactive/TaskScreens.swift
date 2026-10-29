@@ -1,6 +1,7 @@
 import Foundation
 import Noora
 import UnrollCore
+import UnrollDevice
 import UnrollStore
 
 /// The new-task wizard: device, destination, folder structure, versions, Photos, notification, name.
@@ -18,6 +19,8 @@ struct NewTaskScreen: Screen {
         guard let (destination, folder) = Wizard.pickDestination(app) else { return .mainMenu }
         let settings = app.store.loadSettings()
         let template = Wizard.pickFolderTemplate(app, current: settings.defaultFolderTemplate)
+        let deviceRef = SyncTask.DeviceRef(id: device.id, name: device.name)
+        let cameraModels = await Wizard.askOtherFolder(app, device: deviceRef, template: template, current: nil)
         let versions = Wizard.pickVersions(app, current: settings.defaultVersions)
         let photos = Wizard.askAddToPhotos(app, current: false)
         let photosChecksDuplicates = photos ? Wizard.askPhotosDuplicateCheck(app, current: true) : true
@@ -25,8 +28,8 @@ struct NewTaskScreen: Screen {
         let name = Wizard.askName(app, suggested: "\(device.name) → \(destination.volumeName)", excluding: nil)
 
         let task = SyncTask(
-            name: name, device: .init(id: device.id, name: device.name), destination: destination,
-            folderTemplate: template, versions: versions, addToPhotos: photos,
+            name: name, device: deviceRef, destination: destination,
+            folderTemplate: template, versions: versions, cameraModels: cameraModels, addToPhotos: photos,
             photosChecksDuplicates: photosChecksDuplicates, notify: notify
         )
         app.noora.info(.alert("New task \"\(name)\"", takeaways: Wizard.describe(task, folder: folder)))
@@ -53,7 +56,7 @@ struct NewTaskScreen: Screen {
 /// Edits one task's settings. Back returns to the task's More… menu.
 struct EditTaskScreen: Screen {
     enum Action: Equatable {
-        case name, device, destination, template, versions, photos, photosDuplicates, notify, back
+        case name, device, destination, template, other, versions, photos, photosDuplicates, notify, back
     }
 
     let taskID: UUID
@@ -65,13 +68,14 @@ struct EditTaskScreen: Screen {
                 Choice("Device: \(task.device.name)", .device),
                 Choice("Destination: \(Format.destination(task.destination, resolver: app.resolver))", .destination),
                 Choice("Folder structure: \(task.folderTemplate)", .template),
+                Choice("Separate Other folder: \(Wizard.otherLabel(task))", .other),
                 Choice("Original vs. edited: \(Wizard.label(task.versions))", .versions),
                 Choice("Add to Apple Photos: \(task.addToPhotos ? "yes" : "no")\(task.addToPhotos && !app.store.loadSettings().photosEnabled ? " (paused for all tasks in Settings)" : "")", .photos),
                 Choice("Notification when done: \(task.notify ? "yes" : "no")", .notify),
                 Choice("Back", .back),
             ]
             if task.addToPhotos {
-                choices.insert(Choice("Let Photos check for duplicates: \(task.photosChecksDuplicates ? "yes" : "no")", .photosDuplicates), at: 6)
+                choices.insert(Choice("Let Photos check for duplicates: \(task.photosChecksDuplicates ? "yes" : "no")", .photosDuplicates), at: 7)
             }
             switch app.noora.menu("Edit \"\(task.name)\"", choices) {
             case .name:
@@ -85,6 +89,10 @@ struct EditTaskScreen: Screen {
                 task.destination = destination
             case .template:
                 task.folderTemplate = Wizard.pickFolderTemplate(app, current: task.folderTemplate)
+            case .other:
+                task.cameraModels = await Wizard.askOtherFolder(
+                    app, device: task.device, template: task.folderTemplate, current: task.cameraModels
+                )
             case .versions:
                 task.versions = Wizard.pickVersions(app, current: task.versions)
             // On/off options flip right away; the menu then shows the new value.
@@ -361,6 +369,62 @@ enum Wizard {
         return picked
     }
 
+    /// Asks whether images not taken with this iPhone go into a separate Other folder and, if so,
+    /// which camera models count as this iPhone's. Returns nil when they don't.
+    static func askOtherFolder(_ app: AppContext, device: SyncTask.DeviceRef, template: FolderTemplate, current: [String]?) async -> [String]? {
+        let other = template.isNone ? "Other" : "Other/YYYY"
+        guard app.noora.confirm(
+            "Put screenshots and images from other phones into a separate \"\(other)\" folder?", default: current != nil,
+            details: "Photos and videos taken with this iPhone go into the folder structure. Screenshots, screen recordings, saved images and photos from other phones or cameras go into \(other)."
+        ) else { return nil }
+
+        let browser = app.browser
+        let id = device.id
+        let sample: (models: [CameraModelSample], withoutModel: Int)
+        do {
+            sample = try await app.noora.progressStep(
+                message: "Reading camera models from \"\(device.name)\"",
+                successMessage: "Read camera models from \"\(device.name)\"",
+                errorMessage: "Couldn't read camera models from \"\(device.name)\"",
+                showSpinner: true
+            ) { @Sendable update in
+                let session = try await browser.openSession(id, unlockTimeout: .seconds(60))
+                defer { Task { await session.close() } }
+                return try await session.sampleCameraModels(limit: 300) { done, total in
+                    update("Reading camera models from \"\(device.name)\"… \(done) of \(total) photos")
+                }
+            }
+        } catch {
+            app.showError("Connect and unlock \"\(device.name)\", then try again.", takeaways: [
+                "The camera models are read from the photos on it, to recognize which ones it took.",
+            ])
+            return current
+        }
+        guard !sample.models.isEmpty else {
+            app.noora.warning(.alert("No photos with a camera model were found on \"\(device.name)\".", takeaway: "Everything would go into Other, so this stays off."))
+            return nil
+        }
+        // Noora can't preselect, so the newest camera, most likely this iPhone, comes first.
+        let sampled = sample.models.reduce(sample.withoutModel) { $0 + $1.count }
+        let options = sample.models.map { model in
+            let newest = model.newest.map { " · newest photo \($0.formatted(.dateTime.year().month()))" } ?? ""
+            let wasSelected = current?.contains(model.model) == true ? " · selected before" : ""
+            return Choice("\(model.model)\(newest) · \(model.count) of \(sampled) sampled photos\(wasSelected)", model.model)
+        }
+        let picked = app.noora.multipleChoicePrompt(
+            question: "Which cameras are this iPhone's?",
+            options: options,
+            description: "\(Format.wrapped("Space ticks a camera, Enter confirms. Tick earlier iPhones too if their photos are on this one; photos from cameras you don't tick go into \(other).", width: Format.terminalWidth() - 2, indent: 2))",
+            minLimit: .limited(count: 1, errorMessage: "Tick at least one camera.")
+        )
+        return picked.map(\.action)
+    }
+
+    static func otherLabel(_ task: SyncTask) -> String {
+        guard let models = task.cameraModels else { return "off" }
+        return "on, own cameras: \(models.joined(separator: ", "))"
+    }
+
     static func pickVersions(_ app: AppContext, current: VersionPolicy) -> VersionPolicy {
         let options = ([current] + VersionPolicy.allCases.filter { $0 != current }).map { Choice(label($0), $0) }
         return app.noora.menu("Edited photos: which versions should be copied?", options)
@@ -415,6 +479,7 @@ enum Wizard {
             "Device: \(task.device.name)",
             "Destination: \(Format.destination(folder, volumeName: task.destination.volumeName))",
             "Folder structure: \(task.folderTemplate)",
+            "Separate Other folder: \(otherLabel(task))",
             "Versions: \(label(task.versions))",
             "Add to Apple Photos: \(task.addToPhotos ? (task.photosChecksDuplicates ? "yes, Photos checks for duplicates" : "yes, without duplicate check") : "no")",
             "Notification: \(task.notify ? "yes" : "no")",

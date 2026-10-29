@@ -109,7 +109,7 @@ struct PlainRenderer: RunRenderer {
             }
             print("\nNew items:")
             for entry in plan.items {
-                print("  \(entry.path(for: entry.item.filename))  \(entry.key.captureDate)  \(Format.bytes(entry.item.size))")
+                print("  \(entry.item.filename)  \(entry.key.captureDate)  \(Format.bytes(entry.item.size))  → \(Format.folder(of: entry, in: plan))")
             }
         }
     }
@@ -203,6 +203,13 @@ enum Format {
             return ("\(into) · not enough space: \(bytes(available)) free, \(bytes(plan.summary.newBytes)) needed", false)
         }
         return ("\(into) · \(bytes(left)) free after copying", true)
+    }
+
+    /// Where an item will go. With a separate Other folder, the camera model decides while copying.
+    static func folder(of entry: PlannedItem, in plan: SyncPlan) -> String {
+        let folder = entry.folder.isEmpty ? "(destination folder)" : entry.folder
+        guard let rule = plan.otherRule else { return folder }
+        return "\(folder) or \(rule.otherFolder(for: entry.key.captureDate))"
     }
 
     /// The terminal's width in columns, or 80 when it can't be read.

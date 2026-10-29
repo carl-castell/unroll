@@ -22,6 +22,9 @@ struct Scan: AsyncParsableCommand {
     @Option(help: "Request EXIF metadata for this many items and time each request.")
     var exif = 0
 
+    @Option(help: "Read the camera model of this many photos, spread over the camera roll, and count them.")
+    var cameraModels = 0
+
     @Option(help: "Seconds to wait for a locked or untrusted device.")
     var unlockTimeout = 30
 
@@ -53,6 +56,17 @@ struct Scan: AsyncParsableCommand {
             throw UnrollExit.deviceUnavailable
         }
         defer { Task { await session.close() } }
+
+        if cameraModels > 0 {
+            let start = ContinuousClock.now
+            let sample = try await session.sampleCameraModels(limit: cameraModels) { _, _ in }
+            print("Camera models in \(cameraModels) sampled photos (\(ContinuousClock.now - start)):")
+            for model in sample.models {
+                print("  \(model.model): \(model.count), newest \(model.newest?.formatted() ?? "unknown")")
+            }
+            print("  without a model: \(sample.withoutModel)")
+            return
+        }
 
         let start = ContinuousClock.now
         let reporter = PercentReporter()

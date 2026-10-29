@@ -130,7 +130,7 @@ struct PreviewScreen: Screen {
                 // Choosing "Copy now" after seeing the preview is the confirmation; don't ask again.
                 return await TransferFlow.run(task: task, plan: plan, app: app, confirmed: true)
             case .list:
-                let rows = plan.items.map { [$0.item.filename, $0.key.captureDate.description, Format.bytes($0.item.size), $0.folder.isEmpty ? "–" : $0.folder] }
+                let rows = plan.items.map { [$0.item.filename, $0.key.captureDate.description, Format.bytes($0.item.size), Format.folder(of: $0, in: plan)] }
                 try? app.noora.paginatedTable(headers: ["File", "Taken", "Size", "Folder"], rows: rows, pageSize: 20)
             case .back:
                 await app.engine.close(plan)
