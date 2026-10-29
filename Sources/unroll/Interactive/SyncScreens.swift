@@ -80,7 +80,7 @@ struct SyncScreen: Screen {
 
         let summary = plan.summary
         if summary.existingFiles > 0 {
-            app.printStepLine("Found \(summary.existingFiles) files already in the destination; matching ones won't be copied again")
+            app.printStepLine("\(Format.notIndexed(summary.existingFiles))")
         }
         let compared: TerminalText = "Compared against index → \(.primary("\(summary.newCount) new")) (\(Format.bytes(summary.newBytes))), \(summary.alreadyImported) already imported"
         app.printStepLine(compared)
@@ -152,6 +152,8 @@ enum TransferFlow {
         let engine = app.engine
         guard !plan.items.isEmpty else {
             await engine.close(plan)
+            // Files found in the destination but not in its index are recorded, so they aren't read again.
+            try? await engine.indexExistingFiles(plan) { _ in }
             app.noora.success("\"\(task.name)\" is up to date. Nothing new to copy.")
             return .quit
         }

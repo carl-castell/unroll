@@ -7,10 +7,13 @@ public protocol ImportIndex: Sendable {
     func meta() throws -> IndexMeta
     /// Photos and videos (no edit data) copied from one device, with where they are now.
     func files(fromDevice id: DeviceID) throws -> [IndexedFile]
+    /// Paths of all files in the index, relative to the destination root. Nil if unknown.
+    func indexedPaths() throws -> Set<String>?
 }
 
 extension ImportIndex {
     public func files(fromDevice id: DeviceID) throws -> [IndexedFile] { [] }
+    public func indexedPaths() throws -> Set<String>? { nil }
 }
 
 /// A file in the index: its key and where it is in the destination.

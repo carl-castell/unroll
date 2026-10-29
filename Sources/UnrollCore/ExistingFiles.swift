@@ -36,16 +36,27 @@ public struct ExistingFiles: Sendable, Equatable {
     }
 }
 
-/// Files that are already in a destination that has no index yet, e.g. copied earlier with
-/// Image Capture. They are recognized by their name, size and capture time, like `rebuild-index` does.
+/// Files in a destination that its index doesn't know: all of them when there is no index yet
+/// (e.g. copied earlier with Image Capture), or files added by hand later. They are recognized by
+/// their name, size and capture time, like `rebuild-index` does.
 public protocol ExistingFilesScanning: Sendable {
     /// Reads the keys of the files in `root` from file attributes or metadata, without hashing.
-    func scan(in root: URL, progress: @escaping @Sendable (_ done: Int, _ total: Int) -> Void) async -> ExistingFiles
+    /// Files at the `skipping` paths (already indexed) aren't read or counted.
+    func scan(
+        in root: URL, skipping: Set<String>, progress: @escaping @Sendable (_ done: Int, _ total: Int) -> Void
+    ) async -> ExistingFiles
 
     /// Records the files in a new index, with hashes. `known` are the results of an earlier
     /// `scan`; files that haven't changed since are not read again. Returns how many were indexed.
     func index(
         _ destination: ResolvedDestination, known: [ExistingFile],
+        progress: @escaping @Sendable (_ done: Int, _ total: Int) -> Void
+    ) async throws -> Int
+
+    /// Adds files found by `scan` to the destination's existing index, with hashes.
+    /// Returns how many were added.
+    func add(
+        _ files: [ExistingFile], to destination: ResolvedDestination,
         progress: @escaping @Sendable (_ done: Int, _ total: Int) -> Void
     ) async throws -> Int
 }

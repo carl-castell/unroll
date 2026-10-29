@@ -36,7 +36,7 @@ public struct IndexRebuilder: Sendable {
         defer { withExtendedLifetime(lock) {} }
 
         let files = Self.mediaFiles(in: root)
-        let imageBases = Set(files.filter { Self.type(of: $0)?.conforms(to: .image) == true }.map(Self.baseKey))
+        let imageBases = Self.imageBases(of: files)
         let finalURL = SQLiteIndex.url(forDestinationRoot: root)
         let rebuildURL = finalURL.deletingLastPathComponent().appending(path: "index.rebuild.sqlite")
         var result = RebuildResult()
@@ -96,7 +96,12 @@ public struct IndexRebuilder: Sendable {
         return String(file.resolvingSymlinksInPath().path.dropFirst(base.count + 1))
     }
 
-    private static func describe(
+    /// Photos by folder and name without extension, to recognize Live Photo videos next to them.
+    static func imageBases(of files: [URL]) -> Set<String> {
+        Set(files.filter { type(of: $0)?.conforms(to: .image) == true }.map(baseKey))
+    }
+
+    static func describe(
         _ file: URL, root: URL, imageBases: Set<String>, known: [String: ExistingFile]
     ) async throws -> (item: IndexedItem, dateSource: String) {
         let relative = relativePath(of: file, root: root)
@@ -209,15 +214,17 @@ public struct IndexRebuilder: Sendable {
 public struct ExistingFilesScanner: ExistingFilesScanning {
     public init() {}
 
-    public func scan(in root: URL, progress: @escaping @Sendable (Int, Int) -> Void) async -> ExistingFiles {
+    public func scan(
+        in root: URL, skipping: Set<String>, progress: @escaping @Sendable (Int, Int) -> Void
+    ) async -> ExistingFiles {
         let files = IndexRebuilder.mediaFiles(in: root)
+            .map { ($0, IndexRebuilder.relativePath(of: $0, root: root)) }
+            .filter { !skipping.contains($0.1) }
         var found = ExistingFiles(count: files.count)
-        for (done, file) in files.enumerated() {
+        for (done, (file, relative)) in files.enumerated() {
             if done % 50 == 0 { progress(done, files.count) }
             guard let (key, source) = try? await IndexRebuilder.key(of: file) else { continue }
-            found.files.append(ExistingFile(
-                relativePath: IndexRebuilder.relativePath(of: file, root: root), key: key, dateSource: source
-            ))
+            found.files.append(ExistingFile(relativePath: relative, key: key, dateSource: source))
         }
         progress(files.count, files.count)
         return found
@@ -228,5 +235,28 @@ public struct ExistingFilesScanner: ExistingFilesScanning {
     ) async throws -> Int {
         let result = try await IndexRebuilder().rebuild(destination: destination, known: known, progress: progress)
         return result.files - result.duplicateKeys
+    }
+
+    public func add(
+        _ files: [ExistingFile], to destination: ResolvedDestination, progress: @escaping @Sendable (Int, Int) -> Void
+    ) async throws -> Int {
+        let root = destination.root
+        let lock = try DestinationLock(root: root)
+        defer { withExtendedLifetime(lock) {} }
+        guard let index = try SQLiteIndex.openExisting(destinationRoot: root, readOnly: false) else { return 0 }
+        let imageBases = IndexRebuilder.imageBases(of: IndexRebuilder.mediaFiles(in: root))
+        var added = 0
+        for (done, file) in files.enumerated() {
+            progress(done, files.count)
+            let url = root.appending(path: file.relativePath)
+            guard let entry = try? await IndexRebuilder.describe(
+                url, root: root, imageBases: imageBases, known: [file.relativePath: file]
+            ) else { continue }
+            // A file with the same name, size and capture time as an indexed one (a second copy)
+            // can't be recorded under that key; it still counts as imported through the first.
+            if (try? index.record(entry.item, dateSource: entry.dateSource)) != nil { added += 1 }
+        }
+        progress(files.count, files.count)
+        return added
     }
 }

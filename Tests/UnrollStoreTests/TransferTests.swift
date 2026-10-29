@@ -255,6 +255,61 @@ struct TransferTests {
         await engine.close(next)
     }
 
+    /// Files added by hand to a folder that already has an index: found, not copied twice, indexed.
+    @Test func filesAddedByHandToAnIndexedFolderAreRecognized() async throws {
+        session.items = [item("1", "IMG_1.HEIC", date: june)]
+        let destination = ResolvedDestination(root: root, volumeName: "Test", kind: .external, format: "APFS", isReadOnly: false)
+        let engine = SyncEngine(
+            devices: FakeDeviceBrowser(devices: [phone], session: session), destinations: FakeDestinations(resolved: destination),
+            indexes: SQLiteIndexProvider(), writers: DestinationStoreOpener(), existing: ExistingFilesScanner()
+        )
+        func plan() async throws -> SyncPlan {
+            let plan = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
+            await engine.close(plan)
+            return plan
+        }
+        _ = try await engine.execute(try await plan(), confirmed: true, events: { _ in })
+
+        // Copied by hand: the same photo as one on the iPhone, and one that never was.
+        let onPhone = item("2", "IMG_2.HEIC", date: june + 60)
+        let folder = root.appending(path: "copied by hand")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (name, data) in [("IMG_2.HEIC", FakeDeviceSession.bytes(for: onPhone)), ("Scan.JPG", Data("scan".utf8))] {
+            try data.write(to: folder.appending(path: name))
+            try FileManager.default.setAttributes([.modificationDate: onPhone.captureDate!.date(in: .current)], ofItemAtPath: folder.appending(path: name).path)
+        }
+        session.items = [item("1", "IMG_1.HEIC", date: june), onPhone]
+
+        let second = try await plan()
+        #expect(second.summary.existingFiles == 2)
+        #expect(second.items.isEmpty)
+        let summary = try await engine.execute(second, confirmed: true, events: { _ in })
+        #expect(summary.imported == 0)
+        #expect(try index().meta().itemCount == 3)
+        // Now indexed, so the next run doesn't read them again.
+        #expect(try await plan().summary.existingFiles == 0)
+    }
+
+    /// Also when nothing is new: the found files are recorded, so the next run doesn't read them again.
+    @Test func filesAddedByHandAreIndexedEvenWhenNothingIsNew() async throws {
+        session.items = [item("1", "IMG_1.HEIC", date: june)]
+        try await run()
+        try Data("scan".utf8).write(to: root.appending(path: "Scan.JPG"))
+        let destination = ResolvedDestination(root: root, volumeName: "Test", kind: .external, format: "APFS", isReadOnly: false)
+        let engine = SyncEngine(
+            devices: FakeDeviceBrowser(devices: [phone], session: session), destinations: FakeDestinations(resolved: destination),
+            indexes: SQLiteIndexProvider(), writers: DestinationStoreOpener(), existing: ExistingFilesScanner()
+        )
+        let plan = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
+        await engine.close(plan)
+        #expect(plan.items.isEmpty)
+        #expect(plan.summary.existingFiles == 1)
+        try await engine.indexExistingFiles(plan) { _ in }
+        let next = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
+        await engine.close(next)
+        #expect(next.summary.existingFiles == 0)
+    }
+
     @Test func rebuiltIndexRecognizesEverythingAgain() async throws {
         let folder = root.appending(path: "2026/2026-06")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -288,7 +343,7 @@ struct TransferTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try Data(repeating: 1, count: 100).write(to: root.appending(path: "IMG_1.HEIC"))
         try Data(repeating: 2, count: 100).write(to: root.appending(path: "IMG_2.HEIC"))
-        let scanned = await ExistingFilesScanner().scan(in: root) { _, _ in }
+        let scanned = await ExistingFilesScanner().scan(in: root, skipping: []) { _, _ in }
         #expect(scanned.count == 2)
         #expect(scanned.files.map(\.relativePath) == ["IMG_1.HEIC", "IMG_2.HEIC"])
 

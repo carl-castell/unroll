@@ -22,7 +22,7 @@ An item counts as already imported when its capture time, size and file name mat
 
 unroll never deletes anything, on the device or in the destination. Photos and videos you delete on the iPhone after copying stay in the destination. The report counts them ("12 copied earlier are no longer on the device; their copies are kept"), and `unroll run "<task>" --dry-run --list` lists them. Edit files (AAE) aren't counted.
 
-If the destination folder already has photos but no unroll index, for example copied earlier with Image Capture, unroll recognizes them the same way, by name, size and capture time, and doesn't copy them again. The first run records them in its index before copying.
+If the destination folder has photos that aren't in its index, unroll recognizes them the same way, by name, size and capture time, and doesn't copy them again. That covers a folder filled earlier with Image Capture, and files you add to the folder by hand later. Each run compares the files in the folder with the index (only new ones are read), reports how many it found, and adds them to the index. Photos that were never on the iPhone just stay where they are.
 
 ## The first run
 

@@ -20,18 +20,7 @@ extension SyncEngine {
         }
         let start = ContinuousClock.now
         // Record files already in the folder first, so they aren't copied again or collide.
-        let hasIndex = ((try? indexes.existingIndex(at: plan.destination.root)) ?? nil) != nil
-        if plan.summary.existingFiles > 0, let existing, !hasIndex {
-            do {
-                _ = try await existing.index(plan.destination, known: plan.existingFiles) {
-                    events(.existingFilesIndexing(done: $0, total: $1))
-                }
-            } catch let error as SyncError {
-                throw error
-            } catch {
-                throw .indexUnreadable(String(describing: error))
-            }
-        }
+        try await indexExistingFiles(plan, events: events)
         let writer: any DestinationWriter
         do {
             writer = try writers.openForWriting(plan.destination)
@@ -110,6 +99,29 @@ extension SyncEngine {
         if let runID { writer.finishRun(runID, summary: summary) }
         events(.finished(summary))
         return summary
+    }
+
+    /// Records the files the plan found in the destination but not in its index: a new index
+    /// when there is none, otherwise they are added. Called by `execute`; call it directly when
+    /// a run has nothing new to copy, so those files aren't read again next time.
+    public func indexExistingFiles(_ plan: SyncPlan, events: @escaping EventSink) async throws(SyncError) {
+        guard plan.summary.existingFiles > 0, let existing else { return }
+        let hasIndex = ((try? indexes.existingIndex(at: plan.destination.root)) ?? nil) != nil
+        do {
+            if hasIndex {
+                _ = try await existing.add(plan.existingFiles, to: plan.destination) {
+                    events(.existingFilesIndexing(done: $0, total: $1))
+                }
+            } else {
+                _ = try await existing.index(plan.destination, known: plan.existingFiles) {
+                    events(.existingFilesIndexing(done: $0, total: $1))
+                }
+            }
+        } catch let error as SyncError {
+            throw error
+        } catch {
+            throw .indexUnreadable(String(describing: error))
+        }
     }
 
     private func transfer(

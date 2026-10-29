@@ -131,22 +131,27 @@ public struct SyncEngine: Sendable {
         var importedKeys: ImportedKeys
         let meta: IndexMeta?
         let copiedEarlier: [IndexedFile]
+        let indexedPaths: Set<String>?
         do {
             let index = try indexes.existingIndex(at: destination.root)
             importedKeys = try index?.importedKeys() ?? []
             meta = try index?.meta()
             copiedEarlier = try index?.files(fromDevice: task.device.id) ?? []
+            indexedPaths = try index?.indexedPaths()
         } catch {
             await session.close()
             throw .indexUnreadable(String(describing: error))
         }
 
-        // Without an index, files already in the folder still count as imported.
+        // Files in the folder that the index doesn't know (all of them without an index, or ones
+        // added by hand) still count as imported, so matching items aren't copied twice.
         var existingFiles = ExistingFiles()
-        if meta == nil, let existing {
-            existingFiles = await existing.scan(in: destination.root) { events(.existingFilesScanning(done: $0, total: $1)) }
+        if let existing, meta == nil || indexedPaths != nil {
+            existingFiles = await existing.scan(in: destination.root, skipping: indexedPaths ?? []) {
+                events(.existingFilesScanning(done: $0, total: $1))
+            }
             if existingFiles.count > 0 {
-                importedKeys = existingFiles.keys
+                importedKeys.formUnion(existingFiles.keys)
                 events(.existingFilesFound(count: existingFiles.count))
             }
         }

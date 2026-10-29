@@ -112,6 +112,16 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
         }
     }
 
+    public func indexedPaths() throws -> Set<String>? {
+        try locked {
+            var paths = Set<String>()
+            try database.query("SELECT relative_path FROM items") { row in
+                if let path = row.text(0) { paths.insert(path) }
+            }
+            return paths
+        }
+    }
+
     public func meta() throws -> IndexMeta {
         try locked {
             var indexID = ""

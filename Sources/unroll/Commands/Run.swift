@@ -107,6 +107,8 @@ struct Run: AsyncParsableCommand {
         }
         guard !plan.items.isEmpty else {
             await engine.close(plan)
+            // Files found in the destination but not in its index are recorded, so they aren't read again.
+            try? await engine.indexExistingFiles(plan) { _ in }
             renderer.note("Nothing new to copy.")
             return plan.summary.unavailable > 0 ? UnrollExit.itemsFailed : UnrollExit.success
         }

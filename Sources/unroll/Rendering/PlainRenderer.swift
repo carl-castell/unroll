@@ -29,7 +29,7 @@ struct PlainRenderer: RunRenderer {
              .existingFilesScanning, .existingFilesIndexing, .fileDone(_, .imported):
             break
         case .existingFilesFound(let count):
-            say(mark(true) + " Found \(count) files already in the destination; matching ones won't be copied again")
+            say(mark(true) + " \(Format.notIndexed(count))")
         case .photosImportStarted(let files):
             if live {
                 // Photos sends no progress; keep the clock running.
@@ -197,6 +197,11 @@ enum Format {
     /// "12 copied earlier are no longer on the device; their copies are kept".
     static func goneFromDevice(_ count: Int) -> String {
         "\(count.formatted()) copied earlier \(count == 1 ? "is" : "are") no longer on the device; \(count == 1 ? "its copy is" : "their copies are") kept"
+    }
+
+    /// Files in the destination that its index didn't know yet.
+    static func notIndexed(_ count: Int) -> String {
+        "Found \(count.formatted()) \(count == 1 ? "file" : "files") in the destination that \(count == 1 ? "isn't" : "aren't") in its index yet; matching items won't be copied again, and the run adds them to the index"
     }
 
     /// "1,234 new files · 18.4 GB".

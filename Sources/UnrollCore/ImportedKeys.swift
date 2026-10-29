@@ -33,6 +33,12 @@ public struct ImportedKeys: Sendable, Equatable {
 
     public var isEmpty: Bool { count == 0 }
 
+    /// Adds the keys of `other`.
+    public mutating func formUnion(_ other: ImportedKeys) {
+        exact.formUnion(other.exact)
+        approximate.merge(other.approximate) { $0 + $1 }
+    }
+
     public func contains(_ key: ItemKey) -> Bool {
         if exact.contains(key) { return true }
         guard let times = approximate[NameAndSize(filename: key.filename, size: key.size)] else { return false }
