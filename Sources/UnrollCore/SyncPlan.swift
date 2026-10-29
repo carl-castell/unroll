@@ -39,6 +39,8 @@ public struct SyncPlan: Sendable {
     public let items: [PlannedItem]
     public let unavailable: [DeviceItem]
     public let summary: PlanSummary
+    /// Set when the run must be confirmed before copying; see `ConfirmationPolicy`.
+    public let confirmation: ConfirmationReason?
 
     public var destinationRoot: URL { destination.root }
 
@@ -57,7 +59,7 @@ public struct SyncPlan: Sendable {
         }
         return SyncPlan(
             taskID: taskID, deviceID: deviceID, destination: destination, session: session,
-            items: kept, unavailable: unavailable, summary: summary
+            items: kept, unavailable: unavailable, summary: summary, confirmation: confirmation
         )
     }
 }

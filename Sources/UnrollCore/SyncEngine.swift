@@ -14,6 +14,8 @@ public enum SyncError: Error, Sendable, Equatable {
     case deviceLocked(name: String)
     case deviceFailed(String)
     case indexUnreadable(String)
+    /// The plan needs confirmation (see `ConfirmationPolicy`) and `execute` wasn't told it was given.
+    case confirmationRequired(ConfirmationReason)
 }
 
 /// Progress reported by the core. Interfaces decide how to show it; the core never prints.
@@ -60,6 +62,13 @@ public struct SyncEngine: Sendable {
     public func makePlan(
         for task: SyncTask, unlockTimeout: Duration, events: @escaping EventSink
     ) async throws(SyncError) -> SyncPlan {
+        let destination = try checkDestination(for: task, events: events)
+        let session = try await connectDevice(for: task, unlockTimeout: unlockTimeout, events: events)
+        return try await plan(for: task, destination: destination, session: session, events: events)
+    }
+
+    /// Step 1: the destination's volume is mounted (matched by UUID or network address) and writable.
+    public func checkDestination(for task: SyncTask, events: EventSink) throws(SyncError) -> ResolvedDestination {
         events(.checkStarted(.destination))
         guard let destination = destinations.resolve(task.destination) else {
             throw fail(.destination, .destinationNotConnected(volumeName: task.destination.volumeName), events)
@@ -68,7 +77,13 @@ public struct SyncEngine: Sendable {
             throw fail(.destination, .destinationReadOnly(volumeName: destination.volumeName), events)
         }
         events(.checkPassed(.destination, detail: destination.volumeName))
+        return destination
+    }
 
+    /// Step 2: the task's device is connected, unlocked and trusts this Mac.
+    public func connectDevice(
+        for task: SyncTask, unlockTimeout: Duration, events: EventSink
+    ) async throws(SyncError) -> any DeviceSession {
         events(.checkStarted(.device))
         guard await devices.connectedDevices().contains(where: { $0.id == task.device.id }) else {
             throw fail(.device, .deviceNotConnected(name: task.device.name), events)
@@ -80,7 +95,13 @@ public struct SyncEngine: Sendable {
             throw fail(.device, Self.syncError(error, deviceName: task.device.name), events)
         }
         events(.checkPassed(.device, detail: session.info.name))
+        return session
+    }
 
+    /// Step 3: list the device and compare with the destination's index. Closes the session on failure.
+    public func plan(
+        for task: SyncTask, destination: ResolvedDestination, session: any DeviceSession, events: @escaping EventSink
+    ) async throws(SyncError) -> SyncPlan {
         events(.listingStarted)
         let items: [DeviceItem]
         do {
@@ -92,8 +113,11 @@ public struct SyncEngine: Sendable {
         events(.itemsListed(count: items.count))
 
         let importedKeys: ImportedKeys
+        let meta: IndexMeta?
         do {
-            importedKeys = try indexes.existingIndex(at: destination.root)?.importedKeys() ?? []
+            let index = try indexes.existingIndex(at: destination.root)
+            importedKeys = try index?.importedKeys() ?? []
+            meta = try index?.meta()
         } catch {
             await session.close()
             throw .indexUnreadable(String(describing: error))
@@ -110,8 +134,16 @@ public struct SyncEngine: Sendable {
             session: session,
             items: result.items,
             unavailable: result.unavailable,
-            summary: result.summary
+            summary: result.summary,
+            confirmation: ConfirmationPolicy.reason(for: task, index: meta, newItems: result.items.count)
         )
+    }
+
+    /// Whether a plan can still be executed as is: its device session is open and the destination is
+    /// still mounted at the same place. Used before "Run now" after a preview.
+    public func isStillValid(_ plan: SyncPlan, for task: SyncTask) async -> Bool {
+        guard destinations.resolve(task.destination)?.root == plan.destination.root else { return false }
+        return await devices.connectedDevices().contains { $0.id == plan.deviceID }
     }
 
     /// Releases the plan's device session.

@@ -28,7 +28,7 @@ struct TransferTests {
     func run(limit: Int? = nil) async throws -> SyncSummary {
         var plan = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
         if let limit { plan = plan.limited(to: limit) }
-        let summary = try await engine.execute(plan, events: { _ in })
+        let summary = try await engine.execute(plan, confirmed: true, events: { _ in })
         await engine.close(plan)
         return summary
     }

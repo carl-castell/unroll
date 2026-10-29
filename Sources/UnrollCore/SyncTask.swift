@@ -22,6 +22,8 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
     public var addToPhotos: Bool
     public var notify: Bool
     public var lastRun: Date?
+    /// Set when a run was confirmed; see `ConfirmationPolicy`.
+    public var confirmation: ConfirmationSnapshot?
 
     public init(
         id: UUID = UUID(),
@@ -32,7 +34,8 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
         versions: VersionPolicy = .original,
         addToPhotos: Bool = false,
         notify: Bool = false,
-        lastRun: Date? = nil
+        lastRun: Date? = nil,
+        confirmation: ConfirmationSnapshot? = nil
     ) {
         self.id = id
         self.name = name
@@ -43,6 +46,7 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
         self.addToPhotos = addToPhotos
         self.notify = notify
         self.lastRun = lastRun
+        self.confirmation = confirmation
     }
 
     /// Finds a task by exact name (case-insensitive) or by a unique ID prefix.

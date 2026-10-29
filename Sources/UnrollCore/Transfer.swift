@@ -8,7 +8,14 @@ extension SyncEngine {
     /// move into place without overwriting, and only then record in the index.
     ///
     /// Stops early if the device disconnects; the summary's `stoppedBecause` says why.
-    public func execute(_ plan: SyncPlan, events: @escaping EventSink) async throws(SyncError) -> SyncSummary {
+    /// - Parameter confirmed: whether the user confirmed the run. Required when `plan.confirmation` is set;
+    ///   the core only signals this, and the interface decides how to ask.
+    public func execute(
+        _ plan: SyncPlan, confirmed: Bool, events: @escaping EventSink
+    ) async throws(SyncError) -> SyncSummary {
+        if let reason = plan.confirmation, !confirmed {
+            throw .confirmationRequired(reason)
+        }
         let start = ContinuousClock.now
         let writer: any DestinationWriter
         do {
@@ -65,6 +72,7 @@ extension SyncEngine {
         }
 
         summary.duration = start.duration(to: .now)
+        summary.indexID = try? writer.meta().indexID
         if let runID { writer.finishRun(runID, summary: summary) }
         events(.finished(summary))
         return summary

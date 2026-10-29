@@ -75,6 +75,8 @@ public struct SyncSummary: Sendable, Equatable {
     public var recovered = RecoveryResult(committed: 0, discarded: 0)
     /// Set when the run stopped before all items were attempted.
     public var stoppedBecause: SyncError?
+    /// The destination index's ID after the run, for the task's confirmation snapshot.
+    public var indexID: String?
 
     public init() {}
 
