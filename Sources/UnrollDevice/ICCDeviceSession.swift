@@ -44,7 +44,8 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
             try await pause(.milliseconds(250))
         }
         progress(100)
-        return mediaFiles.flatMap(Self.items(for:))
+        let timeZone = Self.systemTimeZone()
+        return mediaFiles.flatMap { Self.items(for: $0, timeZone: timeZone) }
     }
 
     public func close() async {
@@ -72,33 +73,47 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
     /// Maps a media file and its attached files. On iPhones, a Live Photo's MOV and any AAE/DAT
     /// edit data arrive as `sidecarFiles` of the photo; edited renderings (IMG_E1234) are separate
     /// media files that share the original's `relatedUUID`.
-    static func items(for file: ICCameraFile) -> [DeviceItem] {
+    static func items(for file: ICCameraFile, timeZone: TimeZone) -> [DeviceItem] {
         let assetID = file.relatedUUID.map { String($0.prefix { $0 != "/" }) }
         let kind = kind(of: file)
-        let main = item(for: file, kind: kind, role: isEdited(file) ? .edited : .original, assetID: assetID, parent: nil)
+        let role: ItemRole = isEdited(file) ? .edited : .original
+        let main = item(for: file, kind: kind, role: role, assetID: assetID, parent: nil, timeZone: timeZone)
         let attached = (file.sidecarFiles ?? []).compactMap { $0 as? ICCameraFile }.map { sidecar in
             let sidecarKind = Self.kind(of: sidecar)
             let role: ItemRole = kind == .photo && sidecarKind == .video ? .livePhotoVideo : .sidecar
-            return item(for: sidecar, kind: sidecarKind, role: role, assetID: assetID, parent: main)
+            return item(for: sidecar, kind: sidecarKind, role: role, assetID: assetID, parent: main, timeZone: timeZone)
         }
         return [main] + attached
     }
 
     private static func item(
-        for file: ICCameraFile, kind: MediaKind, role: ItemRole, assetID: String?, parent: DeviceItem?
+        for file: ICCameraFile, kind: MediaKind, role: ItemRole, assetID: String?, parent: DeviceItem?,
+        timeZone: TimeZone
     ) -> DeviceItem {
-        DeviceItem(
+        // ImageCaptureCore reports the photo's clock time interpreted in the Mac's time zone; undo that.
+        let date = (file.creationDate ?? file.fileCreationDate).map { LocalTimestamp(date: $0, interpretedIn: timeZone) }
+        return DeviceItem(
             deviceItemID: itemID(file),
             filename: file.name ?? file.originalFilename ?? itemID(file),
             originalFilename: file.originalFilename,
-            // ImageCaptureCore reports the photo's local clock time, interpreted in the Mac's time zone.
-            captureDate: file.creationDate ?? file.fileCreationDate ?? parent?.captureDate,
+            captureDate: date ?? parent?.captureDate,
             size: Int64(file.fileSize),
             kind: kind,
             role: role,
             assetID: assetID,
             parentItemID: parent?.deviceItemID
         )
+    }
+
+    /// The Mac's configured time zone. ImageCaptureCore converts dates in a system service that
+    /// uses this zone, so a `TZ` environment variable must not influence the conversion back.
+    static func systemTimeZone() -> TimeZone {
+        if let target = try? FileManager.default.destinationOfSymbolicLink(atPath: "/etc/localtime"),
+           let range = target.range(of: "zoneinfo/"),
+           let zone = TimeZone(identifier: String(target[range.upperBound...])) {
+            return zone
+        }
+        return TimeZone.autoupdatingCurrent
     }
 
     private static func isEdited(_ file: ICCameraFile) -> Bool {

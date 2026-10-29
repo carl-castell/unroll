@@ -56,7 +56,7 @@ public struct DeviceItem: Sendable, Equatable {
     /// The name the file had when it was created; "FullSizeRender.heic" for edits,
     /// or another device's name for photos that were shared to this one.
     public let originalFilename: String?
-    public let captureDate: Date?
+    public let captureDate: LocalTimestamp?
     public let size: Int64
     public let kind: MediaKind
     public let role: ItemRole
@@ -69,7 +69,7 @@ public struct DeviceItem: Sendable, Equatable {
         deviceItemID: String,
         filename: String,
         originalFilename: String?,
-        captureDate: Date?,
+        captureDate: LocalTimestamp?,
         size: Int64,
         kind: MediaKind,
         role: ItemRole,

@@ -111,7 +111,7 @@ struct Scan: AsyncParsableCommand {
         let shown = limit == 0 ? items[...] : items.prefix(limit)
         print("")
         for item in shown {
-            let date = item.captureDate.map(Self.date) ?? "no date"
+            let date = item.captureDate?.description ?? "no date"
             let asset = item.assetID.map { " asset=\($0.prefix(8))" } ?? ""
             print("  \(item.filename)  \(date)  \(Self.bytes(item.size))  \(item.kind.rawValue)/\(item.role.rawValue)\(asset)")
         }
@@ -153,10 +153,6 @@ struct Scan: AsyncParsableCommand {
 
     static func bytes(_ count: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
-    }
-
-    static func date(_ date: Date) -> String {
-        date.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits).hour().minute().second())
     }
 
     static func optionalDate(_ date: Date?) -> String {
