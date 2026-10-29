@@ -31,7 +31,7 @@ enum PhotosText {
         guard let result else { return nil }
         if result.deferred {
             return result.pending > 0
-                ? "Adding to Apple Photos is off in Settings; \(result.pending) files will be added once it's on again."
+                ? "Adding to Apple Photos is paused in Settings; \(result.pending) files will be added once it's allowed again."
                 : nil
         }
         if let error = result.error {

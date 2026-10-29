@@ -143,6 +143,13 @@ enum HelpTopic: String, CaseIterable {
     }
 }
 
+/// "(on for: iPhone → SSD)" or "(no task has it on)".
+@MainActor
+private func photosTasksText(_ app: AppContext) -> String {
+    let names = app.loadTasks().filter(\.addToPhotos).map(\.name)
+    return names.isEmpty ? "(no task has it on yet)" : "(on for: \(names.joined(separator: ", ")))"
+}
+
 struct SettingsScreen: Screen {
     enum Action: Equatable {
         case photos, template, versions, notify, openConfig, back
@@ -154,7 +161,7 @@ struct SettingsScreen: Screen {
         while true {
             var settings = app.store.loadSettings()
             let choices: [Choice<Action>] = [
-                Choice("Add to Apple Photos (all tasks): \(settings.photosEnabled ? "on" : "off")", .photos),
+                Choice("Adding to Apple Photos: \(settings.photosEnabled ? "allowed" : "paused for all tasks")  \(photosTasksText(app))", .photos),
                 Choice("Default folder structure: \(settings.defaultFolderTemplate)", .template),
                 Choice("Default for edited photos: \(Wizard.label(settings.defaultVersions))", .versions),
                 Choice("Notify by default: \(settings.defaultNotify ? "yes" : "no")", .notify),
@@ -165,8 +172,13 @@ struct SettingsScreen: Screen {
             // On/off options flip right away; the menu then shows the new value.
             case .photos:
                 settings.photosEnabled.toggle()
-                if !settings.photosEnabled {
-                    app.noora.info("No task adds to Apple Photos now. Files copied meanwhile are added on the first run after you turn this back on.")
+                if settings.photosEnabled {
+                    app.noora.info(.alert("Adding to Apple Photos is allowed again.", takeaways: [
+                        "Tasks with \"Add to Apple Photos\" on add their files, including those copied while it was paused.",
+                        "To turn it on for a task: More for \"…\" → Edit task → Add to Apple Photos.",
+                    ]))
+                } else {
+                    app.noora.info("Adding to Apple Photos is paused for all tasks. Files copied meanwhile are added once you allow it again.")
                 }
             case .template: settings.defaultFolderTemplate = Wizard.pickFolderTemplate(app, current: settings.defaultFolderTemplate)
             case .versions: settings.defaultVersions = Wizard.pickVersions(app, current: settings.defaultVersions)
