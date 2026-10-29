@@ -49,7 +49,7 @@ cp .build/release/unroll /usr/local/bin/
 ### Requirements
 
 - macOS 14 Sonoma or later (Apple silicon or Intel)
-- Xcode or the Xcode Command Line Tools 16 or later, to build it (Swift 6); Homebrew uses them too
+- Xcode or the Xcode Command Line Tools 16 or later, to build it (Swift 6); Homebrew uses them too. If they're older, `brew install` stops before building and says how to update them
 - An iPhone or iPad connected by cable
 - A drive to copy to: usually an external SSD (APFS or Mac OS Extended, Journaled), but a network share or a folder on the Mac's internal disk works too
 
