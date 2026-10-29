@@ -20,7 +20,9 @@ struct NewTaskScreen: Screen {
         let settings = app.store.loadSettings()
         let template = Wizard.pickFolderTemplate(app, current: settings.defaultFolderTemplate)
         let deviceRef = SyncTask.DeviceRef(id: device.id, name: device.name)
-        let cameraModels = await Wizard.askOtherFolder(app, device: deviceRef, template: template, current: nil)
+        let cameraModels = Features.otherFolder
+            ? await Wizard.askOtherFolder(app, device: deviceRef, template: template, current: nil)
+            : nil
         let versions = Wizard.pickVersions(app, current: settings.defaultVersions)
         let photos = Wizard.askAddToPhotos(app, current: false)
         let photosChecksDuplicates = photos ? Wizard.askPhotosDuplicateCheck(app, current: true) : true
@@ -71,14 +73,16 @@ struct EditTaskScreen: Screen {
                 Choice("Device: \(task.device.name)", .device),
                 Choice("Destination: \(Format.destination(task.destination, resolver: app.resolver))", .destination),
                 Choice("Folder structure: \(task.folderTemplate)", .template),
-                Choice("Separate Other folder: \(Wizard.otherLabel(task))", .other),
                 Choice("Original vs. edited: \(Wizard.label(task.versions))", .versions),
                 Choice("Add to Apple Photos: \(task.addToPhotos ? "yes" : "no")\(task.addToPhotos && !app.store.loadSettings().photosEnabled ? " (paused for all tasks in Settings)" : "")", .photos),
                 Choice("Notification when done: \(task.notify ? "yes" : "no")", .notify),
                 Choice("Back", .back),
             ]
+            if Features.otherFolder {
+                choices.insert(Choice("Separate Other folder: \(Wizard.otherLabel(task))", .other), at: 4)
+            }
             if task.addToPhotos {
-                choices.insert(Choice("Let Photos check for duplicates: \(task.photosChecksDuplicates ? "yes" : "no")", .photosDuplicates), at: 7)
+                choices.insert(Choice("Let Photos check for duplicates: \(task.photosChecksDuplicates ? "yes" : "no")", .photosDuplicates), at: Features.otherFolder ? 7 : 6)
             }
             switch app.noora.menu("Edit \"\(task.name)\"", choices) {
             case .name:
@@ -492,7 +496,6 @@ enum Wizard {
             "Device: \(task.device.name)",
             "Destination: \(Format.destination(folder, volumeName: task.destination.volumeName))",
             "Folder structure: \(task.folderTemplate)",
-            "Separate Other folder: \(otherLabel(task))",
             "Versions: \(label(task.versions))",
             "Add to Apple Photos: \(task.addToPhotos ? (task.photosChecksDuplicates ? "yes, Photos checks for duplicates" : "yes, without duplicate check") : "no")",
             "Notification: \(task.notify ? "yes" : "no")",

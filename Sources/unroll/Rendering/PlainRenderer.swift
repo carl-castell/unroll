@@ -223,7 +223,7 @@ enum Format {
     /// Where an item will go. With a separate Other folder, the camera model decides while copying.
     static func folder(of entry: PlannedItem, in plan: SyncPlan) -> String {
         let folder = entry.folder.isEmpty ? "(destination folder)" : entry.folder
-        guard let rule = plan.otherRule else { return folder }
+        guard Features.otherFolder, let rule = plan.otherRule else { return folder }
         return "\(folder) or \(rule.otherFolder(for: entry.key.captureDate))"
     }
 

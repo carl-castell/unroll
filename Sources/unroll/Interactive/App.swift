@@ -28,7 +28,7 @@ final class AppContext {
     init() {
         engine = SyncEngine(
             devices: browser, destinations: resolver, indexes: SQLiteIndexProvider(), writers: DestinationStoreOpener(),
-            existing: ExistingFilesScanner(), cameras: CameraModelReader()
+            existing: ExistingFilesScanner(), cameras: Features.cameraReader
         )
     }
 

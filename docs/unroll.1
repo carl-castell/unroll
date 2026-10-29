@@ -31,7 +31,7 @@ Checks that the task's destination and device are connected, compares the device
 Shows the connected devices and, for each task, whether its device and destination are connected, its last run and the number of files in its destination. \fB\-\-json\fR prints a single object.
 .SS tasks
 .PP
-\fBtasks list\fR shows all tasks. \fBtasks add \-\-name <name> \-\-destination <folder>\fR creates one without the wizard; \fB\-\-device\fR, \fB\-\-folder\-template\fR (or \fBnone\fR), \fB\-\-versions\fR and \fB\-\-camera\-model\fR (repeatable) are optional. \fBtasks remove <task>\fR deletes a task but never the files or the index in its destination.
+\fBtasks list\fR shows all tasks. \fBtasks add \-\-name <name> \-\-destination <folder>\fR creates one without the wizard; \fB\-\-device\fR, \fB\-\-folder\-template\fR (or \fBnone\fR), and \fB\-\-versions\fR are optional. \fBtasks remove <task>\fR deletes a task but never the files or the index in its destination.
 .SS arrange
 .PP
 Moves the photos and videos already in a task's destination into its folder structure, keeping a Live Photo's video and edit data with their photo. Files are only moved, never replaced or deleted; files without a capture time, other files and files added to Apple Photos stay. Every move is listed in \fB.unroll/arrange\-<time>.tsv\fR. \fB\-\-dry\-run\fR only shows what would move. Asks for confirmation unless \fB\-\-yes\fR is given; without a terminal, \fB\-\-yes\fR is required. See \fBunroll help arrange\fR.
@@ -75,8 +75,6 @@ A sync task copies new photos and videos from one iPhone or iPad to one folder. 
 .IP \(bu 2
 \fBFolder structure\fR: date folders inside the destination, by default \fBYYYY/YYYY\-MM\fR (for example \fB2026/2026\-06\fR). Tokens: \fBYYYY\fR, \fBMM\fR, \fBDD\fR. Or no folders: all files directly in the destination folder (\fB\-\-folder\-template none\fR). When names repeat, as iPhone numbers do over the years, the later file gets \fB (1)\fR added.
 .IP \(bu 2
-\fBSeparate Other folder\fR: off by default. When on, only photos and videos taken with this iPhone's camera go into the folder structure. Everything else goes into \fBOther/YYYY\fR (or one \fBOther\fR folder without a structure): screenshots, screen recordings, images saved from apps or the web, and photos from other phones or cameras. unroll recognizes this iPhone's photos by the camera model stored in each file, for example "iPhone 15 Pro". While setting up, it reads the models from a sample of the photos on the iPhone and lets you tick which are yours; tick earlier iPhones too if their photos are on this one. A Live Photo's video and edit data always stay with their photo. On the command line: \fBunroll tasks add … \-\-camera\-model "iPhone 15 Pro"\fR.
-.IP \(bu 2
 \fBOriginal vs. edited\fR, for photos you edited on the iPhone (Live Photo videos always come with their photo):
   \- *Originals only* (default).
   \- *Originals plus their edit files (.AAE)*: the smallest way to keep edits. An AAE file stores the edits separately from the photo; most apps ignore it and show the original.
@@ -117,7 +115,7 @@ unroll can move the photos and videos already in a task's destination into the t
 .IP \(bu 2
 After you save a new task whose folder already has photos in another layout.
 .IP \(bu 2
-After you change a task's folder structure or its Other folder setting.
+After you change a task's folder structure.
 .IP \(bu 2
 Any time under \fBMore for "…" → Arrange existing files…\fR, or with \fBunroll arrange "<task>"\fR.
 .PP
@@ -125,8 +123,6 @@ It first shows how many files would move, with a few examples, and asks. Nothing
 .SS What moves and what stays
 .IP \(bu 2
 Photos and videos with a capture time move into the folder for that time. A Live Photo's video and its edit data (AAE) move with the photo and keep matching names.
-.IP \(bu 2
-With a separate Other folder, the camera model in each file decides between the structure and Other.
 .IP \(bu 2
 Files without a capture time stay where they are, because there's no date to sort them by. So do files that aren't photos or videos.
 .IP \(bu 2

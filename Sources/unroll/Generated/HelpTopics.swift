@@ -33,7 +33,6 @@ enum GeneratedHelp {
             - **Device**: recognized by its device ID, never by its name.
             - **Destination**: a folder on a drive. The drive is recognized by its volume UUID (or a network share by its address), never by its name or where it's mounted.
             - **Folder structure**: date folders inside the destination, by default `YYYY/YYYY-MM` (for example `2026/2026-06`). Tokens: `YYYY`, `MM`, `DD`. Or no folders: all files directly in the destination folder (`--folder-template none`). When names repeat, as iPhone numbers do over the years, the later file gets ` (1)` added.
-            - **Separate Other folder**: off by default. When on, only photos and videos taken with this iPhone's camera go into the folder structure. Everything else goes into `Other/YYYY` (or one `Other` folder without a structure): screenshots, screen recordings, images saved from apps or the web, and photos from other phones or cameras. unroll recognizes this iPhone's photos by the camera model stored in each file, for example "iPhone 15 Pro". While setting up, it reads the models from a sample of the photos on the iPhone and lets you tick which are yours; tick earlier iPhones too if their photos are on this one. A Live Photo's video and edit data always stay with their photo. On the command line: `unroll tasks add … --camera-model "iPhone 15 Pro"`.
             - **Original vs. edited**, for photos you edited on the iPhone (Live Photo videos always come with their photo):
               - *Originals only* (default).
               - *Originals plus their edit files (.AAE)*: the smallest way to keep edits. An AAE file stores the edits separately from the photo; most apps ignore it and show the original.
@@ -75,7 +74,7 @@ enum GeneratedHelp {
             ## When it's offered
 
             - After you save a new task whose folder already has photos in another layout.
-            - After you change a task's folder structure or its Other folder setting.
+            - After you change a task's folder structure.
             - Any time under **More for "…" → Arrange existing files…**, or with `unroll arrange "<task>"`.
 
             It first shows how many files would move, with a few examples, and asks. Nothing moves unless you agree.
@@ -83,7 +82,6 @@ enum GeneratedHelp {
             ## What moves and what stays
 
             - Photos and videos with a capture time move into the folder for that time. A Live Photo's video and its edit data (AAE) move with the photo and keep matching names.
-            - With a separate Other folder, the camera model in each file decides between the structure and Other.
             - Files without a capture time stay where they are, because there's no date to sort them by. So do files that aren't photos or videos.
             - Files already added to Apple Photos as referenced files stay too; moving them would make Photos lose them.
 

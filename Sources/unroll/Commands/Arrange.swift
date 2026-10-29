@@ -40,7 +40,7 @@ struct Arrange: AsyncParsableCommand {
         }
         let path = Format.destination(destination.root, volumeName: destination.volumeName)
         let arranger = DestinationArranger()
-        let plan = await arranger.plan(root: destination.root, template: task.folderTemplate, rule: task.otherFolderRule) { _, _ in }
+        let plan = await arranger.plan(root: destination.root, template: task.folderTemplate, rule: task.activeOtherFolderRule) { _, _ in }
 
         print("\(plan.moves.count) \(plan.moves.count == 1 ? "file" : "files") to move into \(task.folderTemplate.isNone ? "one folder" : task.folderTemplate.pattern) in \(path)")
         if plan.inPlace > 0 { print("  \(plan.inPlace) already in place") }

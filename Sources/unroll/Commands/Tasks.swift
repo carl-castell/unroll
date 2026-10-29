@@ -33,7 +33,7 @@ struct Tasks: AsyncParsableCommand {
                 print("  device:      \(task.device.name)")
                 print("  destination: \(destination)")
                 print("  folders:     \(task.folderTemplate)   versions: \(task.versions.rawValue)")
-                if let models = task.cameraModels {
+                if Features.otherFolder, let models = task.cameraModels {
                     print("  other:       files not from \(models.joined(separator: ", ")) go into Other")
                 }
                 print("  last run:    \(task.lastRun?.formatted() ?? "never")")
@@ -70,7 +70,12 @@ struct Tasks: AsyncParsableCommand {
 
         @Option(
             name: .customLong("camera-model"),
-            help: "A camera model of this device, e.g. \"iPhone 15 Pro\". Repeatable. When given, files from other cameras, screenshots and saved images go into Other."
+            parsing: .singleValue,
+            // Hidden while the Other folder is deactivated (see Features.otherFolder).
+            help: ArgumentHelp(
+                "A camera model of this device, e.g. \"iPhone 15 Pro\". Repeatable. When given, files from other cameras, screenshots and saved images go into Other.",
+                visibility: Features.otherFolder ? .default : .private
+            )
         )
         var cameraModels: [String] = []
 
@@ -110,7 +115,7 @@ struct Tasks: AsyncParsableCommand {
                 destination: target,
                 folderTemplate: template,
                 versions: versions,
-                cameraModels: cameraModels.isEmpty ? nil : cameraModels
+                cameraModels: cameraModels.isEmpty || !Features.otherFolder ? nil : cameraModels
             )
             tasks.append(task)
             try store.saveTasks(tasks)

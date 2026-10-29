@@ -33,7 +33,7 @@ Shows the connected devices and, for each task, whether its device and destinati
 
 ## tasks
 
-`tasks list` shows all tasks. `tasks add --name <name> --destination <folder>` creates one without the wizard; `--device`, `--folder-template` (or `none`), `--versions` and `--camera-model` (repeatable) are optional. `tasks remove <task>` deletes a task but never the files or the index in its destination.
+`tasks list` shows all tasks. `tasks add --name <name> --destination <folder>` creates one without the wizard; `--device`, `--folder-template` (or `none`), and `--versions` are optional. `tasks remove <task>` deletes a task but never the files or the index in its destination.
 
 ## arrange
 

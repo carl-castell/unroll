@@ -29,7 +29,7 @@ enum ArrangeFlow {
         let arranger = DestinationArranger()
         let root = destination.root
         let template = task.folderTemplate
-        let rule = task.otherFolderRule
+        let rule = task.activeOtherFolderRule
         let plan: ArrangePlan
         do {
             plan = try await app.noora.progressStep(
