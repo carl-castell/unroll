@@ -2,6 +2,8 @@
 
 **Copy only the new photos from your iPhone to an external drive, and keep Apple Photos small by referencing them instead of storing them.**
 
+> **Beta:** unroll is in beta. It never changes or deletes anything on your iPhone and never overwrites files, but options, menus and file formats may still change between versions. Keep a backup of your photos, and please report problems as [issues](https://github.com/carl-castell/unroll/issues).
+
 Internal Mac storage is expensive, and a full photo library can easily take hundreds of gigabytes. If you don't use iCloud Photos, or don't want your library to live in the cloud, getting photos off your iPhone regularly is surprisingly awkward:
 
 - **Apple Photos copies everything into its library** when you import from an iPhone, even if "Copy items to the Photos library" is turned off. Referenced files only work for photos that are already in a folder.
