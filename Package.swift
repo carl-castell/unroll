@@ -31,7 +31,8 @@ let package = Package(
             dependencies: ["UnrollCore"],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
-        .testTarget(name: "UnrollCoreTests", dependencies: ["UnrollCore"]),
-        .testTarget(name: "UnrollStoreTests", dependencies: ["UnrollStore"]),
+        .target(name: "UnrollTestSupport", dependencies: ["UnrollCore"]),
+        .testTarget(name: "UnrollCoreTests", dependencies: ["UnrollCore", "UnrollTestSupport"]),
+        .testTarget(name: "UnrollStoreTests", dependencies: ["UnrollStore", "UnrollTestSupport"]),
     ]
 )

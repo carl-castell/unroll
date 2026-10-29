@@ -2,12 +2,7 @@ import Foundation
 import Testing
 import UnrollCore
 @testable import UnrollStore
-
-func temporaryDirectory() throws -> URL {
-    let url = FileManager.default.temporaryDirectory.appending(path: "unroll-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
-    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    return url
-}
+import UnrollTestSupport
 
 struct SQLiteIndexTests {
     func indexed(_ name: String, date: Int64 = 1_780_393_586, size: Int64 = 100) -> IndexedItem {

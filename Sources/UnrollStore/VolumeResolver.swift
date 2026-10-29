@@ -65,7 +65,8 @@ public struct VolumeResolver: DestinationResolving {
             volumeName: match.name,
             kind: match.kind,
             format: match.format,
-            isReadOnly: match.isReadOnly
+            isReadOnly: match.isReadOnly,
+            availableBytes: match.availableBytes
         )
     }
 

@@ -1,31 +1,12 @@
 import Foundation
 import UnrollCore
 
-/// One file recorded in the index after it was copied and verified.
-public struct IndexedItem: Sendable, Equatable {
-    public let key: ItemKey
-    /// Relative to the destination root, e.g. `2026/2026-06/IMG_2211.HEIC`.
-    public let relativePath: String
-    public let sha256: Data
-    public let role: ItemRole
-    public let assetID: String?
-    public let deviceID: DeviceID?
-    public let originalFilename: String?
-    public let importedAt: Date
-
-    public init(
-        key: ItemKey, relativePath: String, sha256: Data, role: ItemRole, assetID: String?,
-        deviceID: DeviceID?, originalFilename: String?, importedAt: Date
-    ) {
-        self.key = key
-        self.relativePath = relativePath
-        self.sha256 = sha256
-        self.role = role
-        self.assetID = assetID
-        self.deviceID = deviceID
-        self.originalFilename = originalFilename
-        self.importedAt = importedAt
-    }
+/// A transfer that started but wasn't recorded yet, from the journal.
+struct PendingTransfer: Equatable {
+    let tempName: String
+    let key: ItemKey
+    /// Set right before the file is moved into place.
+    let item: IndexedItem?
 }
 
 /// The import index in `<destination>/.unroll/index.sqlite`.
@@ -65,6 +46,8 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
         self.database = database
     }
 
+    // MARK: Reading
+
     public func importedKeys() throws -> Set<ItemKey> {
         try locked {
             var keys = Set<ItemKey>()
@@ -72,9 +55,7 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
                 SELECT capture_date, size, filename FROM items
                 UNION ALL SELECT capture_date, size, filename FROM aliases
                 """) { row in
-                keys.insert(ItemKey(
-                    captureDate: LocalTimestamp(secondsSince1970: row.int(0)), size: row.int(1), filename: row.text(2) ?? ""
-                ))
+                keys.insert(Self.key(row, from: 0))
             }
             return keys
         }
@@ -90,21 +71,155 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
         }
     }
 
+    func path(forHash hash: Data) throws -> String? {
+        try locked {
+            var path: String?
+            try database.query("SELECT relative_path FROM items WHERE sha256 = ? LIMIT 1", [.blob(hash)]) { path = $0.text(0) }
+            return path
+        }
+    }
+
+    // MARK: Recording
+
     public func record(_ item: IndexedItem) throws {
+        try locked { try insert(item) }
+    }
+
+    func beginPending(tempName: String, key: ItemKey) throws {
+        try locked {
+            try database.run(
+                "INSERT INTO pending (temp_name, capture_date, size, filename, started_at) VALUES (?, ?, ?, ?, ?)",
+                Self.keyValues(key, prefix: [.text(tempName)]) + [.int(Int64(Date().timeIntervalSince1970))]
+            )
+        }
+    }
+
+    /// Journals where a transfer is about to be moved, so recovery can finish it after a crash.
+    func setPendingTarget(tempName: String, item: IndexedItem) throws {
         try locked {
             try database.run("""
-                INSERT INTO items (capture_date, size, filename, relative_path, sha256, role, asset_id,
-                                   device_id, original_filename, date_source, imported_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'device', ?)
+                UPDATE pending SET target_path = ?, sha256 = ?, role = ?, asset_id = ?, device_id = ?,
+                                   original_filename = ?
+                WHERE temp_name = ?
                 """, [
-                    .int(item.key.captureDate.secondsSince1970), .int(item.key.size), .text(item.key.filename),
-                    .text(item.relativePath), .blob(item.sha256), .text(item.role.rawValue),
-                    item.assetID.map(Database.Value.text) ?? .null,
-                    item.deviceID.map { .text($0.rawValue) } ?? .null,
-                    item.originalFilename.map(Database.Value.text) ?? .null,
-                    .int(Int64(item.importedAt.timeIntervalSince1970)),
+                    .text(item.relativePath), .blob(item.sha256), .text(item.role.rawValue), Self.optional(item.assetID),
+                    Self.optional(item.deviceID?.rawValue), Self.optional(item.originalFilename), .text(tempName),
                 ])
         }
+    }
+
+    /// Records the item and clears its journal entry in one transaction.
+    func commitPending(tempName: String, item: IndexedItem) throws {
+        try locked {
+            try database.transaction {
+                try insert(item)
+                try database.run("DELETE FROM pending WHERE temp_name = ?", [.text(tempName)])
+            }
+        }
+    }
+
+    /// Records `key` as another name for the item at `path` and clears the journal entry.
+    func commitAlias(tempName: String, key: ItemKey, of path: String, deviceID: DeviceID) throws {
+        try locked {
+            try database.transaction {
+                try database.run("""
+                    INSERT OR IGNORE INTO aliases (capture_date, size, filename, item_id, device_id, recorded_at)
+                    SELECT ?, ?, ?, id, ?, ? FROM items WHERE relative_path = ?
+                    """, Self.keyValues(key) + [.text(deviceID.rawValue), .int(Int64(Date().timeIntervalSince1970)), .text(path)])
+                try database.run("DELETE FROM pending WHERE temp_name = ?", [.text(tempName)])
+            }
+        }
+    }
+
+    func deletePending(tempName: String) throws {
+        try locked { try database.run("DELETE FROM pending WHERE temp_name = ?", [.text(tempName)]) }
+    }
+
+    func pendingTransfers() throws -> [PendingTransfer] {
+        try locked {
+            var result: [PendingTransfer] = []
+            try database.query("""
+                SELECT temp_name, capture_date, size, filename, target_path, sha256, role, asset_id, device_id,
+                       original_filename, started_at
+                FROM pending
+                """) { row in
+                let key = Self.key(row, from: 1)
+                var item: IndexedItem?
+                if let target = row.text(4), let hash = row.blob(5), let role = row.text(6).flatMap(ItemRole.init) {
+                    item = IndexedItem(
+                        key: key, relativePath: target, sha256: hash, role: role, assetID: row.text(7),
+                        deviceID: row.text(8).map(DeviceID.init), originalFilename: row.text(9),
+                        importedAt: Date(timeIntervalSince1970: TimeInterval(row.int(10)))
+                    )
+                }
+                result.append(PendingTransfer(tempName: row.text(0) ?? "", key: key, item: item))
+            }
+            return result
+        }
+    }
+
+    // MARK: Runs
+
+    func startRun(taskID: UUID, deviceID: DeviceID) throws -> Int64 {
+        try locked {
+            try database.run(
+                "INSERT INTO runs (task_id, device_id, started_at, status) VALUES (?, ?, ?, 'running')",
+                [.text(taskID.uuidString), .text(deviceID.rawValue), .int(Int64(Date().timeIntervalSince1970))]
+            )
+            var id: Int64 = 0
+            try database.query("SELECT last_insert_rowid()") { id = $0.int(0) }
+            return id
+        }
+    }
+
+    /// Marks runs that never finished, because the process was killed or the Mac shut down.
+    func markUnfinishedRunsInterrupted() throws {
+        try locked { try database.run("UPDATE runs SET status = 'interrupted' WHERE status = 'running'") }
+    }
+
+    func finishRun(_ id: Int64, summary: SyncSummary) throws {
+        let status = summary.stoppedBecause != nil ? "aborted" : (summary.failed.isEmpty ? "ok" : "partial")
+        try locked {
+            try database.run("""
+                UPDATE runs SET finished_at = ?, imported = ?, duplicates = ?, unavailable = ?, failed = ?,
+                                bytes = ?, status = ?
+                WHERE id = ?
+                """, [
+                    .int(Int64(Date().timeIntervalSince1970)), .int(Int64(summary.imported)), .int(Int64(summary.duplicates)),
+                    .int(Int64(summary.unavailable)), .int(Int64(summary.failed.count)), .int(summary.bytes),
+                    .text(status), .int(id),
+                ])
+        }
+    }
+
+    // MARK: Helpers
+
+    private func insert(_ item: IndexedItem) throws {
+        try database.run("""
+            INSERT INTO items (capture_date, size, filename, relative_path, sha256, role, asset_id,
+                               device_id, original_filename, date_source, imported_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'device', ?)
+            """, Self.keyValues(item.key) + [
+                .text(item.relativePath), .blob(item.sha256), .text(item.role.rawValue), Self.optional(item.assetID),
+                Self.optional(item.deviceID?.rawValue), Self.optional(item.originalFilename),
+                .int(Int64(item.importedAt.timeIntervalSince1970)),
+            ])
+    }
+
+    private static func keyValues(_ key: ItemKey, prefix: [Database.Value] = []) -> [Database.Value] {
+        prefix + [.int(key.captureDate.secondsSince1970), .int(key.size), .text(key.filename)]
+    }
+
+    private static func key(_ row: Database.Row, from column: Int32) -> ItemKey {
+        ItemKey(
+            captureDate: LocalTimestamp(secondsSince1970: row.int(column)),
+            size: row.int(column + 1),
+            filename: row.text(column + 2) ?? ""
+        )
+    }
+
+    private static func optional(_ text: String?) -> Database.Value {
+        text.map(Database.Value.text) ?? .null
     }
 
     private func checkSchema() throws {
@@ -168,13 +283,17 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
         );
 
         CREATE TABLE IF NOT EXISTS pending (
-            temp_name    TEXT PRIMARY KEY,
-            capture_date INTEGER NOT NULL,
-            size         INTEGER NOT NULL,
-            filename     TEXT    NOT NULL,
-            target_path  TEXT,
-            sha256       BLOB,
-            started_at   INTEGER NOT NULL
+            temp_name         TEXT PRIMARY KEY,
+            capture_date      INTEGER NOT NULL,
+            size              INTEGER NOT NULL,
+            filename          TEXT    NOT NULL,
+            started_at        INTEGER NOT NULL,
+            target_path       TEXT,
+            sha256            BLOB,
+            role              TEXT,
+            asset_id          TEXT,
+            device_id         TEXT,
+            original_filename TEXT
         );
 
         CREATE TABLE IF NOT EXISTS runs (
@@ -184,7 +303,6 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
             started_at  INTEGER NOT NULL,
             finished_at INTEGER,
             imported    INTEGER,
-            skipped     INTEGER,
             duplicates  INTEGER,
             unavailable INTEGER,
             failed      INTEGER,
