@@ -156,6 +156,7 @@ struct Scan: AsyncParsableCommand {
         case .accessRestricted(let name): "\"\(name)\" is locked or doesn't trust this Mac. Unlock it, tap Trust, and try again."
         case .sessionFailed(let reason): "Couldn't open the device: \(reason)"
         case .disconnected: "The device was disconnected."
+        case .downloadFailed(let reason): "Download failed: \(reason)"
         }
     }
 

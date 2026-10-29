@@ -6,7 +6,7 @@ import UnrollStore
 struct PlainRenderer: Sendable {
     func handle(_ event: SyncEvent) {
         switch event {
-        case .checkStarted, .listingProgress:
+        case .checkStarted, .listingProgress, .fileStarted, .fileProgress:
             break
         case .checkPassed(let check, let detail):
             print("✓ \(Self.label(check)): \(detail)")
@@ -25,6 +25,18 @@ struct PlainRenderer: Sendable {
             if summary.unavailable > 0 {
                 print("  \(summary.unavailable) not available on the device (see `unroll help troubleshooting`)")
             }
+        case .recovered(let result):
+            print("Cleaned up an interrupted run: \(result.committed) finished, \(result.discarded) incomplete files removed")
+        case .transferStarted(let count, let bytes):
+            print("\nCopying \(count) files (\(Format.bytes(bytes)))…")
+        case .fileDone(let entry, .imported(let path)):
+            print("  ✓ \(path)  \(Format.bytes(entry.item.size))")
+        case .fileDone(let entry, .duplicate(let existing)):
+            print("  = \(entry.item.filename) is identical to \(existing), not copied again")
+        case .fileFailed(let entry, let failure):
+            print("  ✗ \(entry.item.filename): \(Self.describe(failure))")
+        case .finished(let summary):
+            printSummary(summary)
         }
     }
 
@@ -51,6 +63,25 @@ struct PlainRenderer: Sendable {
             for entry in plan.items {
                 print("  \(entry.folder)/\(entry.item.filename)  \(entry.key.captureDate)  \(Format.bytes(entry.item.size))")
             }
+        }
+    }
+
+    private func printSummary(_ summary: SyncSummary) {
+        let seconds = Double(summary.duration.components.seconds) + Double(summary.duration.components.attoseconds) / 1e18
+        let speed = seconds > 0 ? " at \(Format.bytes(Int64(Double(summary.bytes) / seconds)))/s" : ""
+        print("\nImported \(summary.imported) files (\(Format.bytes(summary.bytes)))\(speed) in \(Int(seconds.rounded())) s")
+        if summary.duplicates > 0 { print("  \(summary.duplicates) duplicates of files already in the destination") }
+        if !summary.failed.isEmpty { print("  \(summary.failed.count) failed") }
+        if summary.notAttempted > 0 { print("  \(summary.notAttempted) not attempted") }
+        if summary.unavailable > 0 { print("  \(summary.unavailable) not available on the device") }
+    }
+
+    static func describe(_ failure: ItemFailure) -> String {
+        switch failure {
+        case .downloadFailed(let reason): "download failed: \(reason)"
+        case .incomplete(let expected, let actual): "incomplete (\(actual) of \(expected) bytes)"
+        case .writeFailed(let reason): "couldn't write: \(reason)"
+        case .deviceDisconnected: "the device was disconnected"
         }
     }
 

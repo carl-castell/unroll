@@ -17,6 +17,12 @@ extension SyncError {
             "The destination \"\(name)\" isn't connected. Connect it and try again."
         case .destinationReadOnly(let name):
             "The destination \"\(name)\" is read-only, so nothing can be copied to it."
+        case .destinationBusy:
+            "Another unroll run is already copying into this destination."
+        case .destinationUnwritable(let reason):
+            "Couldn't write to the destination: \(reason)"
+        case .notEnoughSpace(let needed, let available):
+            "Not enough space on the destination: \(Format.bytes(needed)) to copy, \(Format.bytes(available)) free."
         case .deviceNotConnected(let name):
             "\"\(name)\" isn't connected. Connect it with a cable and unlock it."
         case .deviceLocked(let name):
@@ -30,7 +36,9 @@ extension SyncError {
 
     var exitCode: ExitCode {
         switch self {
-        case .destinationNotConnected, .destinationReadOnly, .indexUnreadable: UnrollExit.destinationMissing
+        case .destinationNotConnected, .destinationReadOnly, .destinationBusy, .destinationUnwritable,
+             .notEnoughSpace, .indexUnreadable:
+            UnrollExit.destinationMissing
         case .deviceNotConnected, .deviceLocked, .deviceFailed: UnrollExit.deviceUnavailable
         }
     }
