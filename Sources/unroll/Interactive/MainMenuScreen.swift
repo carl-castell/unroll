@@ -24,25 +24,21 @@ struct MainMenuScreen: Screen {
         var choices: [Choice<Action>] = []
         if let last {
             let ready = Self.readiness(last, devices: devices, app: app)
-            choices.append(Choice("\(ready) Run \"\(last.name)\"  \(Self.lastRunText(last))", .run(last.id)))
-            choices.append(Choice("  Preview \"\(last.name)\"  (dry run)", .preview(last.id)))
+            choices.append(Choice("Run \"\(last.name)\" \(ready)  \(Self.lastRunText(last))", .run(last.id)))
+            choices.append(Choice("Preview \"\(last.name)\" \(ready)  (dry run)", .preview(last.id)))
         }
-        var rest: [Choice<Action>] = []
         if tasks.count > 1 {
-            rest.append(Choice("Other tasks…", .otherTasks))
+            choices.append(Choice("Other tasks…", .otherTasks))
         }
-        rest.append(Choice("New sync task", .newTask))
+        choices.append(Choice("New sync task", .newTask))
         if !tasks.isEmpty {
-            rest.append(Choice("Edit / delete task", .manage))
+            choices.append(Choice("Edit / delete task", .manage))
         }
-        rest.append(Choice("Status & history", .status))
+        choices.append(Choice("Status & history", .status))
         if !tasks.isEmpty {
-            rest.append(Choice("Rebuild index", .rebuild))
+            choices.append(Choice("Rebuild index", .rebuild))
         }
-        rest += [Choice("Help", .help), Choice("Settings", .settings), Choice("Quit", .quit)]
-        // Indent the rest like the task lines, whose first column holds the readiness dot.
-        let indent = last == nil ? "" : "  "
-        choices += rest.map { Choice(indent + $0.description, $0.action) }
+        choices += [Choice("Help", .help), Choice("Settings", .settings), Choice("Quit", .quit)]
 
         switch app.noora.menu("What do you want to do?", choices) {
         case .run(let id): return .screen(SyncScreen(taskID: id, mode: .run))
@@ -85,15 +81,16 @@ struct TaskPickerScreen: Screen {
             "Which task?",
             tasks.map { task in
                 let ready = MainMenuScreen.readiness(task, devices: devices, app: app)
-                return Choice("\(ready) \(task.name)  \(MainMenuScreen.lastRunText(task))", Optional(task.id))
-            } + [Choice("  Back", nil)],
+                return Choice("\(task.name) \(ready)  \(MainMenuScreen.lastRunText(task))", Optional(task.id))
+            } + [Choice("Back", nil)],
             filterable: tasks.count > 10
         )
         guard let id = picked, let task = tasks.first(where: { $0.id == id }) else { return .mainMenu }
+        let ready = MainMenuScreen.readiness(task, devices: devices, app: app)
 
         let choices = [
-            Choice("Run \"\(task.name)\"", Action.run),
-            Choice("Preview \"\(task.name)\"  (dry run)", .preview),
+            Choice("Run \"\(task.name)\" \(ready)", Action.run),
+            Choice("Preview \"\(task.name)\" \(ready)  (dry run)", .preview),
             Choice("Back", .back),
         ]
         switch app.noora.menu("What do you want to do with \"\(task.name)\"?", choices) {

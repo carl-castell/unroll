@@ -74,16 +74,16 @@ Running `unroll` in a terminal opens a menu you navigate with the arrow keys. Yo
  unroll
  Connected: My iPhone (iPhone)
  What do you want to do?
- ❯ ● Run "iPhone → SSD"  (last run 3 days ago)
-     Preview "iPhone → SSD"  (dry run)
-     Other tasks…
-     New sync task
-     Edit / delete task
-     Status & history
-     Rebuild index
-     Help
-     Settings
-     Quit
+ ❯ Run "iPhone → SSD" ●  (last run 3 days ago)
+   Preview "iPhone → SSD" ●  (dry run)
+   Other tasks…
+   New sync task
+   Edit / delete task
+   Status & history
+   Rebuild index
+   Help
+   Settings
+   Quit
 ```
 
 A green ● means the task is ready to run: its iPhone and its destination are both connected. A grey ○ means one of them is missing.
