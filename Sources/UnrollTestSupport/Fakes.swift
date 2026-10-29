@@ -174,11 +174,12 @@ public final class EventRecorder: @unchecked Sendable {
 
 public let phone = DeviceInfo(id: DeviceID("phone-1"), name: "Test iPhone", productKind: "iPhone", access: .available)
 
-public func sampleTask(versions: VersionPolicy = .original) -> SyncTask {
+public func sampleTask(versions: VersionPolicy = .original, folders: FolderTemplate = .default) -> SyncTask {
     SyncTask(
         name: "iPhone → SSD",
         device: .init(id: phone.id, name: phone.name),
         destination: Destination(kind: .local, volumeUUID: "VOL-1", remountURL: nil, volumeName: "Photos-SSD", path: "Photos"),
+        folderTemplate: folders,
         versions: versions
     )
 }

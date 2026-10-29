@@ -4,8 +4,13 @@ import Foundation
 public struct PlannedItem: Sendable, Equatable {
     public let item: DeviceItem
     public let key: ItemKey
-    /// Relative to the destination root, e.g. `2026/2026-06`.
+    /// Relative to the destination root, e.g. `2026/2026-06`; empty for the root itself.
     public let folder: String
+
+    /// A file name inside this item's folder, relative to the destination root.
+    public func path(for name: String) -> String {
+        folder.isEmpty ? name : "\(folder)/\(name)"
+    }
 }
 
 public struct MonthSummary: Sendable, Equatable {

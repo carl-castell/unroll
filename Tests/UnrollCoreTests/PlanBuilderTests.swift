@@ -123,4 +123,12 @@ struct FolderTemplateTests {
         #expect(throws: FolderTemplate.Invalid.emptyComponent) { try FolderTemplate("YYYY//MM") }
         #expect(throws: FolderTemplate.Invalid.empty) { try FolderTemplate("") }
     }
+
+    @Test func noFoldersPutsFilesInTheRoot() throws {
+        let date = LocalTimestamp(secondsSince1970: 1_780_393_586)
+        #expect(FolderTemplate.none.folder(for: date) == "")
+        let encoded = try JSONEncoder().encode(FolderTemplate.none)
+        #expect(String(decoding: encoded, as: UTF8.self) == "\"\"")
+        #expect(try JSONDecoder().decode(FolderTemplate.self, from: encoded) == .none)
+    }
 }

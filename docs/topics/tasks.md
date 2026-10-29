@@ -6,7 +6,7 @@ A sync task copies new photos and videos from one iPhone or iPad to one folder. 
 
 - **Device**: recognized by its device ID, never by its name.
 - **Destination**: a folder on a drive. The drive is recognized by its volume UUID (or a network share by its address), never by its name or where it's mounted.
-- **Folder structure**: date folders inside the destination, by default `YYYY/YYYY-MM` (for example `2026/2026-06`). Tokens: `YYYY`, `MM`, `DD`.
+- **Folder structure**: date folders inside the destination, by default `YYYY/YYYY-MM` (for example `2026/2026-06`). Tokens: `YYYY`, `MM`, `DD`. Or no folders: all files directly in the destination folder (`--folder-template none`). When names repeat, as iPhone numbers do over the years, the later file gets ` (1)` added.
 - **Original vs. edited**: originals only (default), the edited version where one exists, or both plus the edit data (AAE).
 - **Add to Apple Photos**: off by default. See `unroll help photos-referenced`.
 - **Notification when done**: off by default.

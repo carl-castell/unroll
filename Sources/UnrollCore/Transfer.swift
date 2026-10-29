@@ -219,9 +219,9 @@ struct GroupNamer {
 
     static func path(_ entry: PlannedItem, suffix: Int) -> String {
         let name = entry.item.filename
-        guard suffix > 0 else { return "\(entry.folder)/\(name)" }
+        guard suffix > 0 else { return entry.path(for: name) }
         let base = (name as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension
-        return "\(entry.folder)/\(base) (\(suffix))\(ext.isEmpty ? "" : ".\(ext)")"
+        return entry.path(for: "\(base) (\(suffix))\(ext.isEmpty ? "" : ".\(ext)")")
     }
 }

@@ -59,7 +59,7 @@ struct Tasks: AsyncParsableCommand {
         @Option(help: "Destination folder.", completion: .directory)
         var destination: String
 
-        @Option(help: "Folder structure inside the destination. Tokens: YYYY, MM, DD.")
+        @Option(help: "Folder structure inside the destination. Tokens: YYYY, MM, DD; \"none\" for no folders.")
         var folderTemplate = FolderTemplate.default.pattern
 
         @Option(help: "Which versions of edited photos to copy: original, edited or both.")
@@ -79,7 +79,8 @@ struct Tasks: AsyncParsableCommand {
                 printError("A task named \"\(name)\" already exists.")
                 throw UnrollExit.invalidTask
             }
-            guard let template = try? FolderTemplate(folderTemplate) else {
+            let none = ["none", ""].contains(folderTemplate.lowercased())
+            guard let template = none ? FolderTemplate.none : try? FolderTemplate(folderTemplate) else {
                 printError("\"\(folderTemplate)\" isn't a valid folder structure. Example: YYYY/YYYY-MM")
                 throw UnrollExit.invalidTask
             }

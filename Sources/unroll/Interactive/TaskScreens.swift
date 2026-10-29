@@ -339,8 +339,10 @@ enum Wizard {
 
     static func pickFolderTemplate(_ app: AppContext, current: FolderTemplate) -> FolderTemplate {
         let example = LocalTimestamp(secondsSince1970: 1_780_393_586) // 2026-06-02
-        let presets = ["YYYY/YYYY-MM", "YYYY/MM", "YYYY/YYYY-MM-DD", "YYYY"].compactMap { try? FolderTemplate($0) }
-        var options = presets.map { Choice("\($0)  (e.g. \($0.folder(for: example)))", Optional($0)) }
+        let presets = [FolderTemplate.none] + ["YYYY/YYYY-MM", "YYYY/MM", "YYYY/YYYY-MM-DD", "YYYY"].compactMap { try? FolderTemplate($0) }
+        var options = presets.map {
+            Choice($0.isNone ? "No folders: all files in one folder" : "\($0)  (e.g. \($0.folder(for: example)))", Optional($0))
+        }
         if !presets.contains(current) {
             options.insert(Choice("\(current)  (current)", Optional(current)), at: 0)
         } else if let index = presets.firstIndex(of: current) {

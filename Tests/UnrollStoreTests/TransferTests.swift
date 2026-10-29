@@ -26,9 +26,11 @@ struct TransferTests {
 
     @discardableResult
     func run(
-        limit: Int? = nil, versions: VersionPolicy = .original, photos: FakePhotos? = nil, step: PhotosStep? = nil
+        limit: Int? = nil, versions: VersionPolicy = .original, folders: FolderTemplate = .default,
+        photos: FakePhotos? = nil, step: PhotosStep? = nil
     ) async throws -> SyncSummary {
-        var plan = try await engine.makePlan(for: sampleTask(versions: versions), unlockTimeout: .zero, events: { _ in })
+        let task = sampleTask(versions: versions, folders: folders)
+        var plan = try await engine.makePlan(for: task, unlockTimeout: .zero, events: { _ in })
         if let limit { plan = plan.limited(to: limit) }
         let summary = try await engine.execute(plan, confirmed: true, photos: step ?? photos.map { .add($0) }, events: { _ in })
         await engine.close(plan)
@@ -111,6 +113,15 @@ struct TransferTests {
         session.items = [item("1", "IMG_0398.HEIC", date: june + 3600, size: 700)]
         try await run()
         #expect(try files() == ["2026/2026-06/IMG_0398 (1).HEIC", "2026/2026-06/IMG_0398.HEIC"])
+    }
+
+    /// Without folders, everything lands in the destination itself; repeated names get a suffix.
+    @Test func noFoldersCopiesIntoTheRoot() async throws {
+        session.items = [item("1", "IMG_0398.HEIC", date: june, size: 500), item("2", "IMG_2.MOV", date: june, kind: .video)]
+        try await run(folders: .none)
+        session.items = [item("1", "IMG_0398.HEIC", date: june + 86_400 * 400, size: 700)]
+        try await run(folders: .none)
+        #expect(try files() == ["IMG_0398 (1).HEIC", "IMG_0398.HEIC", "IMG_2.MOV"])
     }
 
     @Test func identicalContentIsRecordedAsAlias() async throws {

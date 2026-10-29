@@ -109,7 +109,7 @@ struct PlainRenderer: RunRenderer {
             }
             print("\nNew items:")
             for entry in plan.items {
-                print("  \(entry.folder)/\(entry.item.filename)  \(entry.key.captureDate)  \(Format.bytes(entry.item.size))")
+                print("  \(entry.path(for: entry.item.filename))  \(entry.key.captureDate)  \(Format.bytes(entry.item.size))")
             }
         }
     }
