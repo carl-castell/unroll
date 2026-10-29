@@ -13,6 +13,8 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
     private var removed = false
     /// The files behind the listed items' `deviceItemID`s.
     private var filesByID: [String: ICCameraFile] = [:]
+    private var activeDownload: CheckedContinuation<Result<String, DeviceError>, Never>?
+    private var progressTask: Task<Void, Never>?
 
     init(camera: ICCameraDevice, info: DeviceInfo) {
         self.camera = camera
@@ -49,6 +51,52 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
         let timeZone = Self.systemTimeZone()
         filesByID = [:]
         return mediaFiles.flatMap { items(for: $0, timeZone: timeZone) }
+    }
+
+    public func download(
+        _ item: DeviceItem, to directory: URL, as filename: String, progress: @escaping @Sendable (Int64) -> Void
+    ) async throws(DeviceError) -> URL {
+        guard let file = filesByID[item.deviceItemID] else {
+            throw .downloadFailed("\(item.filename) is no longer listed on the device")
+        }
+        if removed { throw .disconnected }
+        // Read-only: never pass ICDeleteAfterSuccessfulDownload or ICTruncateAfterSuccessfulDownload.
+        // Attached files (Live Photo video, AAE) are separate items, so sidecars aren't downloaded here.
+        let options: [ICDownloadOption: Any] = [
+            .downloadsDirectoryURL: directory,
+            .saveAsFilename: filename,
+            .overwrite: false,
+            .sidecarFiles: false,
+        ]
+        let size = item.size
+        let result: Result<String, DeviceError> = await withCheckedContinuation { continuation in
+            activeDownload = continuation
+            // ImageCaptureCore calls this on a background queue.
+            let transfer = file.requestDownload(options: options) { @Sendable savedName, error in
+                let outcome: Result<String, DeviceError> = error.map { .failure(.downloadFailed($0.localizedDescription)) }
+                    ?? .success(savedName.map { ($0 as NSString).lastPathComponent } ?? filename)
+                Task { @MainActor in self.finishDownload(outcome) }
+            }
+            if let transfer {
+                progressTask = Task { @MainActor in
+                    while !Task.isCancelled {
+                        progress(Int64(transfer.fractionCompleted * Double(size)))
+                        try? await Task.sleep(for: .milliseconds(200))
+                    }
+                }
+            }
+        }
+        progressTask?.cancel()
+        progressTask = nil
+        switch result {
+        case .success(let name): return directory.appending(path: name)
+        case .failure(let error): throw error
+        }
+    }
+
+    private func finishDownload(_ result: Result<String, DeviceError>) {
+        activeDownload?.resume(returning: result)
+        activeDownload = nil
     }
 
     public func close() async {
@@ -204,6 +252,8 @@ extension ICCDeviceSession: @preconcurrency ICCameraDeviceDelegate {
 
     public func didRemove(_ device: ICDevice) {
         removed = true
+        // A download in progress never completes once the cable is pulled.
+        finishDownload(.failure(.disconnected))
     }
 
     public func deviceDidBecomeReady(withCompleteContentCatalog device: ICCameraDevice) {
