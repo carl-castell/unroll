@@ -75,10 +75,11 @@ public struct IndexRebuilder: Sendable {
 
     // MARK: Scanning
 
-    /// Regular files in the destination, skipping hidden files and unroll's own `.unroll/` folder.
+    /// Regular files in the destination, skipping hidden files, unroll's own `.unroll/` folder, and
+    /// the inside of packages such as a `.photoslibrary` kept in the same folder.
     static func mediaFiles(in root: URL) -> [URL] {
         let enumerator = FileManager.default.enumerator(
-            at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]
+            at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]
         )
         return (enumerator?.allObjects as? [URL] ?? [])
             .filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }

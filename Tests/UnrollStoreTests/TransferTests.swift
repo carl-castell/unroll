@@ -182,6 +182,15 @@ struct TransferTests {
         await engine.close(plan)
     }
 
+    /// A Photos library kept in the destination is a package; its contents aren't indexed.
+    @Test func rebuildSkipsPackagesLikePhotosLibraries() throws {
+        let library = root.appending(path: "Test.photoslibrary/originals/0", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
+        try Data("inside".utf8).write(to: library.appending(path: "ABC.heic"))
+        try Data("photo".utf8).write(to: root.appending(path: "IMG_1.HEIC"))
+        #expect(IndexRebuilder.mediaFiles(in: root).map(\.lastPathComponent) == ["IMG_1.HEIC"])
+    }
+
     @Test func rebuildStripsCollisionSuffixFromFilesWithoutAttributes() {
         #expect(IndexRebuilder.withoutCollisionSuffix("IMG_1234 (1).HEIC") == "IMG_1234.HEIC")
         #expect(IndexRebuilder.withoutCollisionSuffix("IMG_1234 (12).MOV") == "IMG_1234.MOV")
