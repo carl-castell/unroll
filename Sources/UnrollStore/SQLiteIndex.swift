@@ -1,6 +1,18 @@
 import Foundation
 import UnrollCore
 
+/// One run as recorded in the destination's index.
+public struct RunRecord: Sendable, Equatable {
+    public let taskID: UUID?
+    public let startedAt: Date
+    public let imported: Int
+    public let duplicates: Int
+    public let failed: Int
+    public let bytes: Int64
+    /// ok, partial, cancelled, aborted, interrupted or running.
+    public let status: String
+}
+
 /// A transfer that started but wasn't recorded yet, from the journal.
 struct PendingTransfer: Equatable {
     let tempName: String
@@ -200,13 +212,38 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
         }
     }
 
+    /// The most recent runs into this destination, newest first.
+    public func runs(limit: Int = 10) throws -> [RunRecord] {
+        try locked {
+            var runs: [RunRecord] = []
+            try database.query("""
+                SELECT task_id, started_at, imported, duplicates, failed, bytes, status
+                FROM runs ORDER BY started_at DESC, id DESC LIMIT ?
+                """, [.int(Int64(limit))]) { row in
+                runs.append(RunRecord(
+                    taskID: row.text(0).flatMap(UUID.init(uuidString:)),
+                    startedAt: Date(timeIntervalSince1970: TimeInterval(row.int(1))),
+                    imported: Int(row.int(2)), duplicates: Int(row.int(3)), failed: Int(row.int(4)),
+                    bytes: row.int(5), status: row.text(6) ?? ""
+                ))
+            }
+            return runs
+        }
+    }
+
     /// Marks runs that never finished, because the process was killed or the Mac shut down.
     func markUnfinishedRunsInterrupted() throws {
         try locked { try database.run("UPDATE runs SET status = 'interrupted' WHERE status = 'running'") }
     }
 
     func finishRun(_ id: Int64, summary: SyncSummary) throws {
-        let status = summary.stoppedBecause != nil ? "aborted" : (summary.failed.isEmpty ? "ok" : "partial")
+        let status = if summary.stoppedBecause != nil {
+            "aborted"
+        } else if !summary.failed.isEmpty {
+            "partial"
+        } else {
+            summary.cancelled ? "cancelled" : "ok"
+        }
         try locked {
             try database.run("""
                 UPDATE runs SET finished_at = ?, imported = ?, duplicates = ?, unavailable = ?, failed = ?,

@@ -40,12 +40,12 @@ public struct VolumeResolver: DestinationResolving {
     public init() {}
 
     /// All mounted volumes a user could choose, external first, then network, then internal.
+    /// Like Finder's sidebar, only browsable volumes: system helper volumes, Time Machine,
+    /// snapshots, simulator images and the like are hidden.
     public func mountedVolumes() -> [Volume] {
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: Self.keys, options: []) ?? []
-        let volumes = urls.compactMap(Self.volume(at:)).filter { volume in
-            // Hide the sealed system volume and other internal helper volumes, except the data volume.
-            volume.kind != .internal || volume.url.path == Self.internalDataVolume || volume.url.path == "/"
-        }
+        let volumes = urls.filter { (try? $0.resourceValues(forKeys: [.volumeIsBrowsableKey]).volumeIsBrowsable) == true }
+            .compactMap(Self.volume(at:))
         let order: [VolumeKind] = [.external, .network, .internal]
         return volumes.sorted { order.firstIndex(of: $0.kind)! < order.firstIndex(of: $1.kind)! }
     }
