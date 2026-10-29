@@ -71,12 +71,17 @@ struct SyncScreen: Screen {
                 switch event {
                 case .listingProgress(let percent): update("Reading item list… \(percent)%")
                 case .itemsListed(let count): update("Comparing \(count) files against the index…")
+                case .existingFilesScanning(let done, let total):
+                    update("Reading the files already in the destination… \(done) of \(total)")
                 default: break
                 }
             }
         }
 
         let summary = plan.summary
+        if summary.existingFiles > 0 {
+            app.printStepLine("Found \(summary.existingFiles) files already in the destination; matching ones won't be copied again")
+        }
         let compared: TerminalText = "Compared against index → \(.primary("\(summary.newCount) new")) (\(Format.bytes(summary.newBytes))), \(summary.alreadyImported) already imported"
         app.printStepLine(compared)
         if summary.excludedByVersions > 0 {
@@ -164,13 +169,13 @@ enum TransferFlow {
             }
         }
 
-        let tracker = TransferTracker(totalFiles: plan.items.count, totalBytes: totalBytes)
+        let tracker = TransferTracker(styled: true)
         let log = RunLog(task: task, dryRun: false)
         let summary: SyncSummary
         do {
             summary = try await app.noora.progressStep(
                 message: "Copying \(plan.items.count) files (\(Format.bytes(totalBytes)))",
-                successMessage: "Copied",
+                successMessage: "Copied \(plan.items.count) files",
                 errorMessage: "Copying failed",
                 showSpinner: true
             ) { @Sendable update in
@@ -187,11 +192,11 @@ enum TransferFlow {
                     tracker.markStopping()
                     update(tracker.currentLine())
                 }
-                // Keeps the clock running while Photos imports, which sends no events.
+                // Keeps the clock running during steps without events of their own (Photos).
                 let ticker = Task {
                     while !Task.isCancelled {
                         try? await Task.sleep(for: .seconds(1))
-                        if tracker.isAddingToPhotos { update(tracker.currentLine()) }
+                        if tracker.isWaiting { update(tracker.currentLine()) }
                     }
                 }
                 defer {
@@ -209,7 +214,7 @@ enum TransferFlow {
         await engine.close(plan)
         record(task: task, summary: summary, app: app)
         await PhotosText.notify(task, summary: summary)
-        showSummary(summary, plan: plan, log: log?.url, app: app)
+        showSummary(summary, task: task, plan: plan, log: log?.url, app: app)
         return .mainMenu
     }
 
@@ -232,8 +237,12 @@ enum TransferFlow {
         try? app.save(current)
     }
 
-    private static func showSummary(_ summary: SyncSummary, plan: SyncPlan, log: URL?, app: AppContext) {
-        var details: [TerminalText] = ["Into \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))"]
+    private static func showSummary(_ summary: SyncSummary, task: SyncTask, plan: SyncPlan, log: URL?, app: AppContext) {
+        let took = TransferTracker.duration(Format.seconds(summary.duration))
+        var details: [TerminalText] = [
+            "Imported \(summary.imported) files (\(Format.bytes(summary.bytes))) in \(took)",
+            "Into \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))",
+        ]
         if summary.duplicates > 0 { details.append("\(summary.duplicates) identical to files already there; not copied again") }
         if summary.unavailable > 0 { details.append("\(summary.unavailable) not available on the device; see Help → Troubleshooting") }
         if summary.notAttempted > 0 { details.append("\(summary.notAttempted) not copied yet; run the task again to continue") }
@@ -249,107 +258,18 @@ enum TransferFlow {
 
         let headline = "Imported \(summary.imported) files (\(Format.bytes(summary.bytes)))"
         if let stopped = summary.stoppedBecause {
-            app.noora.error(.alert("Stopped: \(stopped.message)", takeaways: ["\(headline)"] + details))
+            app.noora.error(.alert("Stopped: \(stopped.message)", takeaways: details))
         } else if !summary.failed.isEmpty || summary.photos?.error != nil {
-            app.noora.error(.alert("\(headline), \(summary.failed.count) failed", takeaways: details))
+            let what = summary.failed.isEmpty ? "couldn't be added to Apple Photos" : "\(summary.failed.count) failed"
+            app.noora.error(.alert("Sync finished with problems: \(what)", takeaways: details))
         } else if summary.cancelled {
             app.noora.warning(.alert(
                 "\(headline). Stopped at your request.",
                 takeaway: "\(summary.notAttempted) not copied yet; run the task again to continue"
             ))
         } else {
-            app.noora.success(.alert("\(headline)", takeaways: details))
+            app.noora.success(.alert("Sync complete. \"\(task.name)\" is up to date.", takeaways: details))
         }
-    }
-}
-
-/// Turns transfer events into a progress line: bar, count, current file, speed, time left.
-final class TransferTracker: @unchecked Sendable {
-    private let lock = NSLock()
-    private let totalFiles: Int
-    private let totalBytes: Int64
-    private let start = ContinuousClock.now
-    private var doneFiles = 0
-    private var doneBytes: Int64 = 0
-    private var currentBytes: Int64 = 0
-    private var currentName = ""
-    private var lastLine = ContinuousClock.now - .seconds(1)
-    private var stopping = false
-    /// Set while Photos imports: how many files, and since when.
-    private var photos: (files: Int, since: ContinuousClock.Instant)?
-
-    init(totalFiles: Int, totalBytes: Int64) {
-        self.totalFiles = totalFiles
-        self.totalBytes = max(totalBytes, 1)
-    }
-
-    /// The new progress line, or nil if nothing worth redrawing happened.
-    func handle(_ event: SyncEvent) -> String? {
-        lock.withLock {
-            switch event {
-            case .fileStarted(let entry, _):
-                currentName = entry.item.filename
-                currentBytes = 0
-            case .fileProgress(_, let bytes):
-                currentBytes = bytes
-                // Redraw at most ten times a second.
-                guard ContinuousClock.now - lastLine > .milliseconds(100) else { return nil }
-            case .fileDone(let entry, _), .fileFailed(let entry, _):
-                doneFiles += 1
-                doneBytes += entry.item.size
-                currentBytes = 0
-            case .photosImportStarted(let files):
-                photos = (files, .now)
-            case .photosImportProgress:
-                return nil
-            default:
-                return nil
-            }
-            lastLine = .now
-            return line()
-        }
-    }
-
-    /// After Ctrl-C: the line says the run stops once the current file is done.
-    func markStopping() {
-        lock.withLock { stopping = true }
-    }
-
-    func currentLine() -> String {
-        lock.withLock { line() }
-    }
-
-    /// True while Photos imports, so the caller can redraw the elapsed time.
-    var isAddingToPhotos: Bool {
-        lock.withLock { photos != nil }
-    }
-
-    private func line() -> String {
-        // Photos doesn't report progress to scripts, so show the time spent instead.
-        if let photos {
-            let elapsed = Self.duration(Format.seconds(photos.since.duration(to: .now)))
-            return "Adding \(photos.files) files to Apple Photos… \(elapsed)"
-        }
-        let bytes = doneBytes + currentBytes
-        let fraction = min(Double(bytes) / Double(totalBytes), 1)
-        let filled = Int(fraction * 20)
-        let bar = String(repeating: "█", count: filled) + String(repeating: "░", count: 20 - filled)
-        let elapsed = Double((ContinuousClock.now - start).components.seconds) + 0.001
-        let speed = Double(bytes) / elapsed
-        var parts = ["\(bar) \(Int(fraction * 100))%", "\(min(doneFiles + 1, totalFiles))/\(totalFiles)", currentName]
-        if elapsed > 2, speed > 0 {
-            parts.append("\(Format.bytes(Int64(speed)))/s")
-            parts.append("\(Self.duration(Double(totalBytes - bytes) / speed)) left")
-        }
-        if stopping { parts.append("— stopping after this file") }
-        return parts.joined(separator: "  ")
-    }
-
-    static func duration(_ seconds: Double) -> String {
-        let total = Int(seconds.rounded())
-        return total >= 3600
-            ? String(format: "%d:%02d:%02d", total / 3600, total / 60 % 60, total % 60)
-            : String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 

@@ -26,8 +26,12 @@ struct JSONRenderer: RunRenderer {
 
     func handle(_ event: SyncEvent) {
         switch event {
-        case .checkStarted, .listingProgress, .fileProgress, .photosImportProgress:
+        case .checkStarted, .listingProgress, .fileProgress, .photosImportProgress, .existingFilesScanning:
             break
+        case .existingFilesFound(let count):
+            emit("existingFiles", ["count": count])
+        case .existingFilesIndexing(let done, let total):
+            if done == total { emit("existingFilesIndexed", ["count": total]) }
         case .photosImportStarted(let files):
             emit("photosStarted", ["files": files])
         case .photosImportFinished(let result):
@@ -49,6 +53,7 @@ struct JSONRenderer: RunRenderer {
             emit("compared", [
                 "new": summary.newCount, "bytes": summary.newBytes, "alreadyImported": summary.alreadyImported,
                 "excludedByVersions": summary.excludedByVersions, "unavailable": summary.unavailable,
+                "existingFiles": summary.existingFiles,
             ])
         case .recovered(let result):
             emit("recovered", ["committed": result.committed, "discarded": result.discarded])

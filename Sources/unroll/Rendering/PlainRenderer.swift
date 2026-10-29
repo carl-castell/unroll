@@ -3,53 +3,76 @@ import Foundation
 import UnrollCore
 import UnrollStore
 
-/// Line-oriented output without colors or animation, for pipes, scripts and Shortcuts.
+/// Output of `unroll run` without the menu. In a terminal: colors and one live progress line.
+/// Elsewhere (pipes, scripts, Shortcuts): plain lines without animation. Either way, files are
+/// only listed when they fail; `--dry-run --list` lists what would be copied.
 struct PlainRenderer: RunRenderer {
     /// How to show the destination, e.g. "~/unroll-test (Macintosh HD)"; the core reports only the drive.
     var destinationLabel: String?
+    /// Colors and a live progress line; only when standard output is a terminal.
+    let live: Bool
+    private let tracker: TransferTracker
+    private let ticker = Ticker()
+
+    init(destinationLabel: String? = nil, live: Bool = isatty(STDOUT_FILENO) != 0) {
+        self.destinationLabel = destinationLabel
+        self.live = live
+        tracker = TransferTracker(styled: live)
+    }
 
     func handle(_ event: SyncEvent) {
+        if live, let line = tracker.handle(event) {
+            show(line)
+        }
         switch event {
-        case .checkStarted, .listingProgress, .fileStarted, .fileProgress, .photosImportProgress:
+        case .checkStarted, .listingProgress, .fileStarted, .fileProgress, .photosImportProgress,
+             .existingFilesScanning, .existingFilesIndexing, .fileDone(_, .imported):
             break
+        case .existingFilesFound(let count):
+            say(mark(true) + " Found \(count) files already in the destination; matching ones won't be copied again")
         case .photosImportStarted(let files):
-            print("\nAdding \(files) files to Apple Photos… (Photos doesn't report progress; this can take a while)")
-        case .photosImportFinished(let result):
-            if let error = result.error {
-                printError(PhotosText.describe(error))
+            if live {
+                // Photos sends no progress; keep the clock running.
+                ticker.start { [tracker] in show(tracker.currentLine()) }
             } else {
-                print("  \(result.added) added. \(PhotosText.copyItemsReminder)")
+                say("Adding \(files) files to Apple Photos… (Photos doesn't report progress; this can take a while)")
+            }
+        case .photosImportFinished(let result):
+            ticker.stop()
+            if let error = result.error {
+                say(mark(false) + " " + PhotosText.describe(error), error: true)
+            } else if result.added > 0 {
+                say(mark(true) + " Added \(result.added) files to Apple Photos. " + dim(PhotosText.copyItemsReminder))
             }
         case .checkPassed(.destination, let detail):
-            print("✓ Destination: \(destinationLabel ?? detail)")
+            say(mark(true) + " Destination: \(destinationLabel ?? detail)")
         case .checkPassed(let check, let detail):
-            print("✓ \(Self.label(check)): \(detail)")
+            say(mark(true) + " \(Self.label(check)): \(detail)")
         case .checkFailed(let check, _):
-            print("✗ \(Self.label(check))")
+            say(mark(false) + " \(Self.label(check))")
         case .listingStarted:
-            print("Reading item list…")
+            if !live { say("Reading item list…") }
         case .itemsListed(let count):
-            print("Listed \(count) files")
+            say(mark(true) + " Listed \(count) files on the device")
         case .comparisonDone(let summary):
-            print("Compared against index: \(summary.newCount) new (\(Format.bytes(summary.newBytes))), "
+            say(mark(true) + " Compared against index: \(bold("\(summary.newCount) new")) (\(Format.bytes(summary.newBytes))), "
                 + "\(summary.alreadyImported) already imported")
             if summary.excludedByVersions > 0 {
-                print("  \(summary.excludedByVersions) skipped by the task's original/edited setting")
+                say(dim("  \(summary.excludedByVersions) skipped by the task's original/edited setting"))
             }
             if summary.unavailable > 0 {
-                print("  \(summary.unavailable) not available on the device (see `unroll help troubleshooting`)")
+                say(dim("  \(summary.unavailable) not available on the device (see `unroll help troubleshooting`)"))
             }
         case .recovered(let result):
-            print("Cleaned up an interrupted run: \(result.committed) finished, \(result.discarded) incomplete files removed")
+            say(dim("Cleaned up an interrupted run: \(result.committed) finished, \(result.discarded) incomplete files removed"))
         case .transferStarted(let count, let bytes):
-            print("\nCopying \(count) files (\(Format.bytes(bytes)))…")
-        case .fileDone(let entry, .imported(let path)):
-            print("  ✓ \(path)  \(Format.bytes(entry.item.size))")
+            if !live { say("Copying \(count) files (\(Format.bytes(bytes)))…") }
         case .fileDone(let entry, .duplicate(let existing)):
-            print("  = \(entry.item.filename) is identical to \(existing), not copied again")
+            if !live { say("  = \(entry.item.filename) is identical to \(existing), not copied again") }
         case .fileFailed(let entry, let failure):
-            print("  ✗ \(entry.item.filename): \(Self.describe(failure))")
+            say(mark(false) + " \(entry.item.filename): \(Self.describe(failure))")
         case .finished(let summary):
+            ticker.stop()
             printSummary(summary)
         }
     }
@@ -59,15 +82,15 @@ struct PlainRenderer: RunRenderer {
     }
 
     func note(_ text: String) {
-        print(text)
+        say(text)
     }
 
     func failure(_ message: String, code: ExitCode) {
-        printError(message)
+        say(message, error: true)
     }
 
     func result(_ code: ExitCode, log: URL?) {
-        if let log { print("Log: \(Format.path(log))") }
+        if let log { say(dim("Log: \(Format.path(log))")) }
     }
 
     func printPlan(_ plan: SyncPlan, listItems: Bool) {
@@ -96,15 +119,53 @@ struct PlainRenderer: RunRenderer {
         }
     }
 
+    /// The result: a clear "Sync complete" line, then the details.
     private func printSummary(_ summary: SyncSummary) {
+        let took = TransferTracker.duration(Format.seconds(summary.duration))
         let seconds = Format.seconds(summary.duration)
-        let speed = seconds > 0 ? " at \(Format.bytes(Int64(Double(summary.bytes) / seconds)))/s" : ""
-        print("\nImported \(summary.imported) files (\(Format.bytes(summary.bytes)))\(speed) in \(Int(seconds.rounded())) s")
-        if summary.duplicates > 0 { print("  \(summary.duplicates) duplicates of files already in the destination") }
-        if !summary.failed.isEmpty { print("  \(summary.failed.count) failed") }
-        if summary.notAttempted > 0 { print("  \(summary.notAttempted) not attempted") }
-        if summary.unavailable > 0 { print("  \(summary.unavailable) not available on the device") }
-        if let photos = PhotosText.summary(summary.photos) { print("  \(photos)") }
+        let speed = seconds > 1 ? ", \(Format.bytes(Int64(Double(summary.bytes) / seconds)))/s" : ""
+        let copied = "Imported \(summary.imported) files (\(Format.bytes(summary.bytes))) in \(took)\(speed)"
+        let problems = !summary.failed.isEmpty || summary.photos?.error != nil || summary.stoppedBecause != nil
+        say("")
+        if summary.cancelled {
+            say(bold("Stopped at your request.") + " \(copied).")
+        } else if problems {
+            say(mark(false) + " " + bold("Sync finished with problems.") + " \(copied).", error: summary.stoppedBecause == nil)
+        } else {
+            say(mark(true) + " " + bold("Sync complete.") + " \(copied).")
+        }
+        if summary.duplicates > 0 { say(dim("  \(summary.duplicates) identical to files already in the destination; not copied again")) }
+        if !summary.failed.isEmpty { say("  \(summary.failed.count) failed (listed above)") }
+        if summary.notAttempted > 0 { say("  \(summary.notAttempted) not copied yet; run the task again to continue") }
+        if summary.unavailable > 0 { say("  \(summary.unavailable) not available on the device") }
+        if let photos = PhotosText.summary(summary.photos) { say(dim("  \(photos)")) }
+    }
+
+    // MARK: Output
+
+    /// Replaces the live progress line.
+    private func show(_ line: String) {
+        print("\r\u{1B}[2K\(line)", terminator: "")
+        fflush(stdout)
+    }
+
+    /// Prints a line above the live progress line, which is redrawn on the next update.
+    private func say(_ text: String, error: Bool = false) {
+        if live { print("\r\u{1B}[2K", terminator: "") }
+        if error { printError(text) } else { print(text) }
+    }
+
+    private func mark(_ ok: Bool) -> String {
+        guard live else { return ok ? "✓" : "✗" }
+        return ok ? "\u{1B}[38;5;114m✔\u{1B}[0m" : "\u{1B}[38;5;203m✗\u{1B}[0m"
+    }
+
+    private func bold(_ text: String) -> String {
+        live ? "\u{1B}[1m\(text)\u{1B}[0m" : text
+    }
+
+    private func dim(_ text: String) -> String {
+        live ? "\u{1B}[38;5;245m\(text)\u{1B}[0m" : text
     }
 
     static func describe(_ failure: ItemFailure) -> String {
@@ -152,6 +213,31 @@ enum Format {
             return self.destination(resolved.root, volumeName: destination.volumeName)
         }
         return "/\(destination.path) (\(destination.volumeName))"
+    }
+}
+
+/// Calls a closure every second while running, for steps that send no events.
+final class Ticker: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: Task<Void, Never>?
+
+    func start(_ tick: @escaping @Sendable () -> Void) {
+        lock.withLock {
+            task?.cancel()
+            task = Task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    if !Task.isCancelled { tick() }
+                }
+            }
+        }
+    }
+
+    func stop() {
+        lock.withLock {
+            task?.cancel()
+            task = nil
+        }
     }
 }
 

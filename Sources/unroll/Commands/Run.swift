@@ -81,7 +81,7 @@ struct Run: AsyncParsableCommand {
     private func perform(_ task: SyncTask, renderer: any RunRenderer, log: RunLog?) async -> ExitCode {
         let engine = SyncEngine(
             devices: ICCDeviceBrowser(), destinations: VolumeResolver(), indexes: SQLiteIndexProvider(),
-            writers: DestinationStoreOpener()
+            writers: DestinationStoreOpener(), existing: ExistingFilesScanner()
         )
         let events: EventSink = { event in
             renderer.handle(event)

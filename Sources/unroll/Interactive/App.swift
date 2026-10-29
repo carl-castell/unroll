@@ -27,7 +27,8 @@ final class AppContext {
 
     init() {
         engine = SyncEngine(
-            devices: browser, destinations: resolver, indexes: SQLiteIndexProvider(), writers: DestinationStoreOpener()
+            devices: browser, destinations: resolver, indexes: SQLiteIndexProvider(), writers: DestinationStoreOpener(),
+            existing: ExistingFilesScanner()
         )
     }
 

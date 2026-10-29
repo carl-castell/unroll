@@ -323,6 +323,14 @@ enum Wizard {
                 "This folder already has an unroll index with \(meta.itemCount) files.",
                 takeaways: ["Files listed there won't be copied again."]
             ))
+        } else if case let count = IndexRebuilder.mediaFiles(in: folder).count, count > 0 {
+            app.noora.info(.alert(
+                "This folder already has \(count) files.",
+                takeaways: [
+                    "unroll recognizes photos and videos that are already there by name, size and capture time, and doesn't copy them again.",
+                    "The first run records them in its index before copying.",
+                ]
+            ))
         }
         return (destination, folder)
     }

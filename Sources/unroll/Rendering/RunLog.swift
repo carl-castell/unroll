@@ -45,8 +45,11 @@ final class RunLog: @unchecked Sendable {
 
     private static func line(for event: SyncEvent) -> String? {
         switch event {
-        case .checkStarted, .listingStarted, .listingProgress, .fileStarted, .fileProgress:
+        case .checkStarted, .listingStarted, .listingProgress, .fileStarted, .fileProgress,
+             .existingFilesScanning, .existingFilesIndexing:
             nil
+        case .existingFilesFound(let count):
+            "found \(count) files already in the destination without an index; they are recognized and indexed"
         case .checkPassed(let check, let detail):
             "\(check.rawValue) ok: \(detail)"
         case .checkFailed(let check, let error):
