@@ -19,6 +19,7 @@ let package = Package(
                 "UnrollDevice",
                 "UnrollStore",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Noora", package: "Noora"),
             ]
         ),
         .target(name: "UnrollCore"),

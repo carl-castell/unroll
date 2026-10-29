@@ -9,6 +9,16 @@ struct Unroll: AsyncParsableCommand {
         version: unrollVersion,
         subcommands: [Run.self, Tasks.self, RebuildIndex.self, Scan.self]
     )
+
+    /// Without a command: the interactive menu in a terminal, help everywhere else.
+    @MainActor
+    func run() async throws {
+        guard Terminal.isInteractive else {
+            print(Unroll.helpMessage())
+            return
+        }
+        await InteractiveApp.run()
+    }
 }
 
 /// Exit codes shared by all commands. See `unroll help exit-codes`.
