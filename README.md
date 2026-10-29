@@ -50,7 +50,7 @@ cp .build/release/unroll /usr/local/bin/
 
 - macOS (Apple silicon or Intel)
 - An iPhone or iPad connected by cable
-- An external drive formatted as APFS or Mac OS Extended (Journaled)
+- A drive to copy to: usually an external SSD (APFS or Mac OS Extended, Journaled), but a network share or a folder on the Mac's internal disk works too
 
 ---
 
@@ -85,7 +85,7 @@ A green ● means the task is ready to run: its iPhone and its destination are b
 
 - **More…** holds the task's other options: preview (dry run), edit, delete, rebuild index and history.
 - **Other tasks…** lists your other tasks, each with its dot, and **New sync task**. Picking a task shows this menu for that task.
-- **Help & settings…** holds the help topics and the defaults for new tasks.
+- **Help & settings…** holds the help topics, the switch that pauses Apple Photos for all tasks, and the defaults for new tasks.
 
 During a sync you see each step with a status indicator (checking the destination folder and its drive, connecting to the iPhone, reading the item list, comparing), followed by a progress bar for the transfer and a summary at the end.
 
@@ -99,14 +99,15 @@ A **sync task** is a named configuration you set up once:
 | Device | your iPhone, recognized by its device ID |
 | Destination | a folder on a specific SSD, recognized by its volume UUID |
 | Folder structure | `YYYY/YYYY-MM` |
-| Original vs. edited | keep originals (default) |
-| Add to Apple Photos | off (default) |
+| Original vs. edited | keep originals (default), edited where available, or both |
+| Add to Apple Photos | off (default); Photos' duplicate check on (default) |
+| Notification when done | off (default) |
 
 You can have several tasks, for example one per device.
 
 ### Dry run
 
-Choose **Preview** in the menu, or run:
+Choose **More for "…" → Preview** in the menu, or run:
 
 ```sh
 unroll run "iPhone → SSD" --dry-run
@@ -124,6 +125,7 @@ unroll run "iPhone → SSD" --dry-run  # preview only
 unroll run "iPhone → SSD" --yes      # skip the first-run confirmation
 unroll run "iPhone → SSD" --json     # machine-readable output
 unroll status                        # devices, and whether each task is ready
+unroll tasks                         # list tasks; also tasks add / tasks remove
 unroll rebuild-index                 # rebuild the index from files on the SSD
 unroll help <topic>                  # detailed help
 ```
@@ -141,8 +143,8 @@ Every run is logged to `~/Library/Logs/unroll/` (one file per day, kept for 90 d
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | Finished, but some items failed |
-| 2 | Destination SSD not connected |
+| 1 | Finished, but some items failed or weren't available, or couldn't be added to Photos |
+| 2 | Destination not available (not connected, read-only, full, or in use by another run) |
 | 3 | iPhone not connected, locked, or not trusted |
 | 4 | Task not found or invalid configuration |
 | 5 | Confirmation needed, but not running in a terminal (pass `--yes`) |
@@ -187,8 +189,8 @@ Things to know about referenced files in Apple Photos:
 
 1. **Check:** the destination SSD is mounted (matched by volume UUID, never by name) and the iPhone is connected, unlocked and trusted. If anything is missing, nothing is written.
 2. **List:** read all items on the iPhone with filename, capture date and size, without downloading anything.
-3. **Compare:** look each item up in the task's index. An item counts as already imported if its capture date, size and original filename match.
-4. **Copy:** download only the new items into the date-based folder structure. Live Photos (HEIC + MOV) stay together. Existing files are never overwritten.
+3. **Compare:** look each item up in the task's index. An item counts as already imported if its capture time, size and file name on the iPhone match. The capture time is the photo's own clock time, so changing the Mac's time zone doesn't make old photos look new.
+4. **Copy:** download only the new items into the date-based folder structure. Live Photos (HEIC + MOV) stay together. Existing files are never overwritten; name collisions get a suffix like `IMG_1234 (1).HEIC`, shared by both halves of a Live Photo. Files with identical content are stored once.
 5. **Verify and record:** compute a SHA-256 hash, confirm the file is complete, and only then record it in the index. Interrupted transfers are never marked as imported.
 6. **Optional:** add the new files to Apple Photos as referenced files and show a notification.
 
@@ -199,7 +201,7 @@ Things to know about referenced files in Apple Photos:
 | Photos and videos | Your chosen folder on the SSD | The whole point |
 | Import index (SQLite) | `.unroll/` in the destination folder on the SSD | Index and files always stay together. Restoring or moving the SSD keeps them consistent |
 | Sync tasks and settings | `~/.config/unroll/` | Small, machine-specific configuration |
-| Logs | `~/Library/Logs/unroll/` | Standard macOS location |
+| Logs | `~/Library/Logs/unroll/` | Standard macOS location; one file per day, kept for 90 days |
 
 If the index is ever lost, `unroll rebuild-index` reconstructs it from the files on the SSD.
 
@@ -239,9 +241,11 @@ unroll/
 │   ├── unroll/          # executable: entry point, menus, commands, rendering
 │   ├── UnrollCore/      # tasks, sync plan, comparison, events
 │   ├── UnrollDevice/    # ImageCaptureCore adapter
-│   └── UnrollStore/     # SQLite index, file writing, config
+│   ├── UnrollStore/     # SQLite index, file writing, config
+│   └── UnrollSystem/    # Apple Photos and notifications (AppleScript)
 ├── Tests/
-├── docs/                   # help topics, man page source
+├── docs/                # help topics and man page (source and generated)
+├── scripts/             # generate-docs.swift
 └── README.md
 ```
 
@@ -258,17 +262,19 @@ swift run unroll
 ```
 
 - Open `Package.swift` in Xcode, or use VS Code with the Swift extension.
-- Tests for the core run without a connected device. Device tests are opt-in.
-- Releases are tagged as `vX.Y.Z`. A GitHub Action builds the release binary and updates the Homebrew formula.
+- Tests run without a connected device or terminal, using fakes.
+- Help topics live in `docs/topics/*.md`. After changing them, run `swift scripts/generate-docs.swift` to update the built-in help and the man page (`docs/unroll.1`).
+- Releases are tagged as `vX.Y.Z`. A GitHub Action builds and tests the tag, creates the release and updates the Homebrew formula. No binaries are published; Homebrew builds from source.
 
 ---
 
 ## Help and documentation
 
 - `unroll --help` and `unroll <command> --help`
-- `unroll help <topic>`: `setup`, `tasks`, `photos-referenced`, `troubleshooting`, `exit-codes`
-- `man unroll`
-- **Help** in the interactive menu
+- `unroll help <topic>`: `setup`, `tasks`, `photos-referenced`, `troubleshooting`, `exit-codes`, `keys`
+- `man unroll` (from a source checkout: `man ./docs/unroll.1`)
+- **Help & settings… → Help** in the interactive menu
+- Shell completions, including task names: `unroll --generate-completion-script zsh` (or `bash`, `fish`); Homebrew installs them for you
 
 ---
 
@@ -284,7 +290,7 @@ Yes. Adding to Photos is optional. By default you just get a clean, date-organiz
 Each task is bound to a specific drive by its volume UUID. A different drive won't be written to unless you change the task.
 
 **macOS asks for permission on first run.**
-macOS may ask whether your terminal app is allowed to access the iPhone, or, with the Photos option, to control Photos. Allow it once.
+With the Photos option, macOS asks whether your terminal app may control Photos; with notifications, it may ask to allow them for Script Editor, which shows them for unroll. Allow it once.
 
 **Some photos are missing.**
 Most likely "Optimize iPhone Storage" is on, so the originals aren't on the phone. See [Setting up your iPhone](#setting-up-your-iphone) and `unroll help troubleshooting`.
