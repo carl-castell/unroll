@@ -123,12 +123,18 @@ unroll run "iPhone → SSD"            # run a task
 unroll run "iPhone → SSD" --dry-run  # preview only
 unroll run "iPhone → SSD" --yes      # skip the first-run confirmation
 unroll run "iPhone → SSD" --json     # machine-readable output
-unroll status                        # devices, tasks, last runs
+unroll status                        # devices, and whether each task is ready
 unroll rebuild-index                 # rebuild the index from files on the SSD
 unroll help <topic>                  # detailed help
 ```
 
-When it isn't running in an interactive terminal, `unroll` never shows menus or prompts. If a confirmation would be needed, it stops with a clear message instead of waiting.
+When it isn't running in an interactive terminal, `unroll` never shows menus or prompts. If a confirmation would be needed, it stops with a clear message and exit code 5 instead of waiting. Without arguments outside a terminal, it prints the help.
+
+With `--json`, `unroll run` writes one JSON object per line: `start`, the checks, `compared`, one `fileDone` or `fileFailed` per file, `finished` with the totals, and finally `result` with the exit code and the log file. Nothing else goes to standard output. `unroll status --json` prints a single object with the connected devices and whether each task is ready.
+
+Press **Ctrl-C** during a copy to stop: the current file is finished, nothing incomplete is recorded, and the next run continues where this one stopped.
+
+Every run is logged to `~/Library/Logs/unroll/` (one file per day, kept for 90 days).
 
 **Exit codes**
 
@@ -139,6 +145,8 @@ When it isn't running in an interactive terminal, `unroll` never shows menus or 
 | 2 | Destination SSD not connected |
 | 3 | iPhone not connected, locked, or not trusted |
 | 4 | Task not found or invalid configuration |
+| 5 | Confirmation needed, but not running in a terminal (pass `--yes`) |
+| 130 | Stopped with Ctrl-C after finishing the current file |
 
 ---
 
