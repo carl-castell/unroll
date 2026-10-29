@@ -5,6 +5,7 @@ import UnrollCore
 /// "Copy items to the Photos library" is off in Photos settings; that setting can't be read from
 /// outside Photos, so it isn't checked here.
 ///
+/// Photos comes to the front for the import, so its duplicate dialog is seen when it asks.
 /// The first time, macOS asks whether the terminal app may control Photos (Automation).
 public struct AppleScriptPhotosImporter: PhotosImporting {
     /// With the check, Photos skips items it already has, asking first in its own dialog; that
@@ -24,6 +25,7 @@ public struct AppleScriptPhotosImporter: PhotosImporting {
         "    set end of theFiles to (POSIX file (p as text)) as alias",
         "  end repeat",
         "  tell application \"Photos\"",
+        "    activate",
         "    with timeout of 14400 seconds",
         "      import theFiles skip check duplicates skipCheck",
         "    end timeout",
