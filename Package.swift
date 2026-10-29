@@ -18,6 +18,7 @@ let package = Package(
                 "UnrollCore",
                 "UnrollDevice",
                 "UnrollStore",
+                "UnrollSystem",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Noora", package: "Noora"),
             ]
@@ -33,6 +34,8 @@ let package = Package(
             dependencies: ["UnrollCore"],
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
+        // Apple Photos and notifications, through AppleScript.
+        .target(name: "UnrollSystem", dependencies: ["UnrollCore"]),
         .target(name: "UnrollTestSupport", dependencies: ["UnrollCore"]),
         .testTarget(name: "UnrollCoreTests", dependencies: ["UnrollCore", "UnrollTestSupport"]),
         .testTarget(name: "UnrollStoreTests", dependencies: ["UnrollStore", "UnrollTestSupport"]),
