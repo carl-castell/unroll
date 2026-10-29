@@ -25,10 +25,12 @@ struct TransferTests {
     }
 
     @discardableResult
-    func run(limit: Int? = nil, versions: VersionPolicy = .original, photos: FakePhotos? = nil) async throws -> SyncSummary {
+    func run(
+        limit: Int? = nil, versions: VersionPolicy = .original, photos: FakePhotos? = nil, step: PhotosStep? = nil
+    ) async throws -> SyncSummary {
         var plan = try await engine.makePlan(for: sampleTask(versions: versions), unlockTimeout: .zero, events: { _ in })
         if let limit { plan = plan.limited(to: limit) }
-        let summary = try await engine.execute(plan, confirmed: true, photos: photos, events: { _ in })
+        let summary = try await engine.execute(plan, confirmed: true, photos: step ?? photos.map { .add($0) }, events: { _ in })
         await engine.close(plan)
         return summary
     }
@@ -219,6 +221,20 @@ struct TransferTests {
         let second = try await run(photos: photos)
         #expect(second.photos?.added == 2)
         #expect(Set(photos.batches.flatMap { $0 }) == ["IMG_1.HEIC", "IMG_2.HEIC"])
+        #expect(try index().pendingPhotosImports().isEmpty)
+    }
+
+    /// With Photos switched off in Settings, files are remembered and added once it's back on.
+    @Test func photosSwitchedOffRemembersFilesForLater() async throws {
+        session.items = [item("1", "IMG_1.HEIC", date: june)]
+        let first = try await run(step: .later)
+        #expect(first.photos?.deferred == true)
+        #expect(first.photos?.pending == 1)
+
+        let photos = FakePhotos()
+        session.items.append(item("2", "IMG_2.HEIC", date: june + 60))
+        let second = try await run(photos: photos)
+        #expect(second.photos?.added == 2)
         #expect(try index().pendingPhotosImports().isEmpty)
     }
 

@@ -145,7 +145,7 @@ enum HelpTopic: String, CaseIterable {
 
 struct SettingsScreen: Screen {
     enum Action: Equatable {
-        case template, versions, notify, openConfig, back
+        case photos, template, versions, notify, openConfig, back
     }
 
     var returnTo: UUID?
@@ -154,13 +154,19 @@ struct SettingsScreen: Screen {
         while true {
             var settings = app.store.loadSettings()
             let choices: [Choice<Action>] = [
+                Choice("Add to Apple Photos (all tasks): \(settings.photosEnabled ? "on" : "off")", .photos),
                 Choice("Default folder structure: \(settings.defaultFolderTemplate)", .template),
                 Choice("Default for edited photos: \(Wizard.label(settings.defaultVersions))", .versions),
                 Choice("Notify by default: \(settings.defaultNotify ? "yes" : "no")", .notify),
                 Choice("Show the settings folder in Finder", .openConfig),
                 Choice("Back", .back),
             ]
-            switch app.noora.menu("Settings for new tasks", choices) {
+            switch app.noora.menu("Settings", choices) {
+            case .photos:
+                settings.photosEnabled = app.noora.yesOrNoChoicePrompt(
+                    question: "Add files to Apple Photos for tasks that have it turned on?", defaultAnswer: settings.photosEnabled,
+                    description: "When off, no task adds to Photos. Files copied meanwhile are remembered and added on the first run after it's turned back on."
+                )
             case .template: settings.defaultFolderTemplate = Wizard.pickFolderTemplate(app, current: settings.defaultFolderTemplate)
             case .versions: settings.defaultVersions = Wizard.pickVersions(app, current: settings.defaultVersions)
             case .notify: settings.defaultNotify = Wizard.askNotify(app, current: settings.defaultNotify)

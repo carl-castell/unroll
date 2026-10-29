@@ -21,8 +21,24 @@ public struct Settings: Codable, Sendable, Equatable {
     public var defaultFolderTemplate: FolderTemplate = .default
     public var defaultVersions: VersionPolicy = .original
     public var defaultNotify = false
+    /// Off: no task adds files to Apple Photos; they are added once it's turned back on.
+    public var photosEnabled = true
 
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case lastUsedTaskID, defaultFolderTemplate, defaultVersions, defaultNotify, photosEnabled
+    }
+
+    /// Settings added in later versions fall back to their defaults, so older files still load.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        lastUsedTaskID = try container.decodeIfPresent(UUID.self, forKey: .lastUsedTaskID)
+        defaultFolderTemplate = try container.decodeIfPresent(FolderTemplate.self, forKey: .defaultFolderTemplate) ?? .default
+        defaultVersions = try container.decodeIfPresent(VersionPolicy.self, forKey: .defaultVersions) ?? .original
+        defaultNotify = try container.decodeIfPresent(Bool.self, forKey: .defaultNotify) ?? false
+        photosEnabled = try container.decodeIfPresent(Bool.self, forKey: .photosEnabled) ?? true
+    }
 }
 
 /// Sync tasks in `~/.config/unroll/tasks.json` (or `$XDG_CONFIG_HOME/unroll`).

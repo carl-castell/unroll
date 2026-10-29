@@ -174,7 +174,7 @@ enum TransferFlow {
                 errorMessage: "Copying failed",
                 showSpinner: true
             ) { @Sendable update in
-                let photos: (any PhotosImporting)? = task.addToPhotos ? AppleScriptPhotosImporter(checksDuplicates: task.photosChecksDuplicates) : nil
+                let photos = PhotosText.step(for: task, settings: TaskStore().loadSettings())
                 let work = Task {
                     try await engine.execute(plan, confirmed: true, photos: photos) { event in
                         log?.record(event)
@@ -242,7 +242,7 @@ enum TransferFlow {
         }
         if summary.failed.count > 5 { details.append("… and \(summary.failed.count - 5) more failures") }
         if let photos = summary.photos {
-            details.append("\(PhotosText.summary(photos) ?? "Nothing new for Apple Photos.")")
+            if let line = PhotosText.summary(photos) { details.append("\(line)") }
             if photos.added > 0 { details.append("\(PhotosText.copyItemsReminder)") }
         }
         if let log { details.append("Log: \(Format.path(log))") }

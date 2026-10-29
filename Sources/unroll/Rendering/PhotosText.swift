@@ -1,5 +1,6 @@
 import Foundation
 import UnrollCore
+import UnrollStore
 import UnrollSystem
 
 /// Wording for Apple Photos imports and the finish notification, shared by all interfaces.
@@ -17,9 +18,22 @@ enum PhotosText {
         }
     }
 
+    /// What happens with Photos for this task: nothing, add now, or remember for later
+    /// while adding to Photos is switched off in Settings.
+    static func step(for task: SyncTask, settings: Settings) -> PhotosStep? {
+        guard task.addToPhotos else { return nil }
+        guard settings.photosEnabled else { return .later }
+        return .add(AppleScriptPhotosImporter(checksDuplicates: task.photosChecksDuplicates))
+    }
+
     /// One line about the Photos step, or nil if it didn't run.
     static func summary(_ result: PhotosImportResult?) -> String? {
         guard let result else { return nil }
+        if result.deferred {
+            return result.pending > 0
+                ? "Adding to Apple Photos is off in Settings; \(result.pending) files will be added once it's on again."
+                : nil
+        }
         if let error = result.error {
             return "\(result.added) added to Photos, \(result.pending) not yet (retried next run). \(describe(error))"
         }

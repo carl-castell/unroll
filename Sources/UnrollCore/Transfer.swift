@@ -11,9 +11,9 @@ extension SyncEngine {
     /// calling task is cancelled (`cancelled`).
     /// - Parameter confirmed: whether the user confirmed the run. Required when `plan.confirmation` is set;
     ///   the core only signals this, and the interface decides how to ask.
-    /// - Parameter photos: when set, imported files are then added to Apple Photos.
+    /// - Parameter photos: when set, what happens with Apple Photos once the files are copied.
     public func execute(
-        _ plan: SyncPlan, confirmed: Bool, photos: (any PhotosImporting)? = nil, events: @escaping EventSink
+        _ plan: SyncPlan, confirmed: Bool, photos: PhotosStep? = nil, events: @escaping EventSink
     ) async throws(SyncError) -> SyncSummary {
         if let reason = plan.confirmation, !confirmed {
             throw .confirmationRequired(reason)
@@ -88,7 +88,7 @@ extension SyncEngine {
         // After Ctrl-C, Photos is left for the next run, which retries pending files.
         if let photos, !summary.cancelled {
             summary.photos = await addToPhotos(
-                newPaths: forPhotos, writer: writer, root: plan.destination.root, photos: photos, events: events
+                newPaths: forPhotos, writer: writer, root: plan.destination.root, step: photos, events: events
             )
         }
 

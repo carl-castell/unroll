@@ -170,6 +170,8 @@ For complete, unconverted originals:
 
 The first time, macOS asks whether your terminal app may control Photos. If that's denied, the files stay on the SSD and are added on the next run once it's allowed (System Settings → Privacy & Security → Automation). `unroll` can't read the Photos setting from step 1, so it reminds you of it after each import instead.
 
+To pause adding to Photos for all tasks at once, turn off **Add to Apple Photos (all tasks)** under Help & settings → Settings. Files copied meanwhile are remembered and added on the first run after you turn it back on.
+
 Things to know about referenced files in Apple Photos:
 
 - Thumbnails stay visible when the SSD is disconnected. Opening, editing or exporting a full original needs the SSD connected.

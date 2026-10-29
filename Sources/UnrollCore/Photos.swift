@@ -12,8 +12,18 @@ public enum PhotosImportError: Error, Sendable, Equatable {
     case failed(String)
 }
 
+/// What happens with Apple Photos after a transfer.
+public enum PhotosStep: Sendable {
+    /// Add the new files (and any left over from earlier runs) now.
+    case add(any PhotosImporting)
+    /// Only remember the new files; they are added by a later run that uses `add`.
+    case later
+}
+
 public struct PhotosImportResult: Sendable, Equatable {
     public var added = 0
+    /// True when the files were only remembered for later (`PhotosStep.later`).
+    public var deferred = false
     /// Files that weren't added yet; they are retried on the next run of the task.
     public var pending = 0
     public var error: PhotosImportError?
@@ -31,9 +41,15 @@ extension SyncEngine {
     /// isn't imported on its own.
     func addToPhotos(
         newPaths: [(path: String, groupKey: String)], writer: any DestinationWriter, root: URL,
-        photos: any PhotosImporting, events: EventSink
+        step: PhotosStep, events: EventSink
     ) async -> PhotosImportResult {
         var result = PhotosImportResult()
+        guard case .add(let photos) = step else {
+            try? writer.markPhotosImport(newPaths.map(\.path), state: .pending)
+            result.deferred = true
+            result.pending = ((try? writer.pendingPhotosImports()) ?? []).count
+            return result
+        }
         let earlier = (try? writer.pendingPhotosImports()) ?? []
         let newSet = Set(newPaths.map(\.path))
         let all = newPaths + earlier.filter { !newSet.contains($0) }.map { ($0, $0) }

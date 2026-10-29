@@ -66,7 +66,7 @@ struct EditTaskScreen: Screen {
                 Choice("Destination: \(Format.destination(task.destination, resolver: app.resolver))", .destination),
                 Choice("Folder structure: \(task.folderTemplate)", .template),
                 Choice("Original vs. edited: \(Wizard.label(task.versions))", .versions),
-                Choice("Add to Apple Photos: \(task.addToPhotos ? "yes" : "no")", .photos),
+                Choice("Add to Apple Photos: \(task.addToPhotos ? "yes" : "no")\(task.addToPhotos && !app.store.loadSettings().photosEnabled ? " (switched off for all tasks in Settings)" : "")", .photos),
                 Choice("Notification when done: \(task.notify ? "yes" : "no")", .notify),
                 Choice("Back", .back),
             ]

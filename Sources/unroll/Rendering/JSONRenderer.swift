@@ -69,7 +69,11 @@ struct JSONRenderer: RunRenderer {
                 "seconds": NSDecimalNumber(string: String(format: "%.1f", Format.seconds(summary.duration))), "cancelled": summary.cancelled,
             ]
             if let stopped = summary.stoppedBecause { fields["stopped"] = stopped.message }
-            if let photos = summary.photos { fields["addedToPhotos"] = photos.added }
+            if let photos = summary.photos {
+                fields["addedToPhotos"] = photos.added
+                fields["pendingForPhotos"] = photos.pending
+                fields["photosDeferred"] = photos.deferred
+            }
             emit("finished", fields)
         }
     }

@@ -82,6 +82,22 @@ struct TaskStoreTests {
         #expect(task.confirmation == nil)
     }
 
+    /// An older settings file keeps its values; the Photos switch defaults to on.
+    @Test func loadsOlderSettingsWithDefaults() throws {
+        let store = TaskStore(directory: try temporaryDirectory())
+        try FileManager.default.createDirectory(at: store.directory, withIntermediateDirectories: true)
+        let id = UUID()
+        let json = """
+            {"version": 1, "settings": {"lastUsedTaskID": "\(id.uuidString)", "defaultFolderTemplate": "YYYY/MM",
+              "defaultVersions": "both", "defaultNotify": true}}
+            """
+        try Data(json.utf8).write(to: store.settingsURL)
+        let settings = store.loadSettings()
+        #expect(settings.lastUsedTaskID == id)
+        #expect(settings.defaultFolderTemplate.pattern == "YYYY/MM")
+        #expect(settings.photosEnabled)
+    }
+
     @Test func honorsXDGConfigHome() {
         let url = TaskStore.defaultDirectory(environment: ["XDG_CONFIG_HOME": "/tmp/cfg"])
         #expect(url.path == "/tmp/cfg/unroll")

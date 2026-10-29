@@ -127,7 +127,7 @@ struct Run: AsyncParsableCommand {
             }
         }
 
-        let photos: (any PhotosImporting)? = task.addToPhotos ? AppleScriptPhotosImporter(checksDuplicates: task.photosChecksDuplicates) : nil
+        let photos = PhotosText.step(for: task, settings: TaskStore().loadSettings())
         let work = Task { try await engine.execute(plan, confirmed: true, photos: photos, events: events) }
         // Ctrl-C finishes the current file, then stops; nothing incomplete is recorded.
         let interrupt = CtrlCHandler {
