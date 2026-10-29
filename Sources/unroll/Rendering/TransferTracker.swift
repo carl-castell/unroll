@@ -83,12 +83,15 @@ final class TransferTracker: @unchecked Sendable {
         let fraction = min(Double(bytes) / Double(totalBytes), 1)
         let elapsed = Format.seconds(start.duration(to: .now))
         let speed = elapsed > 0 ? Double(bytes) / elapsed : 0
-        var details = ["\(min(doneFiles + 1, totalFiles))/\(totalFiles)", currentName]
+        // Fixed-width fields first and the file name last, so the line doesn't jump as names change.
+        let count = String(min(doneFiles + 1, totalFiles)).leftPadded(to: String(totalFiles).count)
+        var details = ["\(count)/\(totalFiles)"]
         if elapsed > 2, speed > 0 {
-            details.append("\(Format.bytes(Int64(speed)))/s")
-            details.append("\(Self.duration(Double(totalBytes - bytes) / speed)) left")
+            details.append("\(Format.bytes(Int64(speed)))/s".leftPadded(to: 11))
+            details.append("\(Self.duration(Double(totalBytes - bytes) / speed)) left".leftPadded(to: 12))
         }
         if stopping { details.append("stopping after this file") }
+        details.append(currentName)
         return "\(bar(fraction)) \(muted(details.joined(separator: " · ")))"
     }
 
