@@ -72,12 +72,10 @@ Running `unroll` in a terminal opens a menu you navigate with the arrow keys. Yo
 
 ```
  unroll
- SSD "Photos-SSD" ✓   iPhone "My iPhone" ✓
-
  What do you want to do?
  ❯ Run "iPhone → SSD"  (last run 3 days ago)
    Preview "iPhone → SSD"  (dry run)
-   Run "Old iPad → Archive"
+   Other tasks…
    New sync task
    Edit / delete task
    Status & history
@@ -87,7 +85,9 @@ Running `unroll` in a terminal opens a menu you navigate with the arrow keys. Yo
    Quit
 ```
 
-During a sync you see each step with a status indicator (checking the SSD, connecting to the iPhone, reading the item list, comparing), followed by a progress bar for the transfer and a summary at the end.
+**Other tasks…** lists all your tasks; pick one to run or preview it.
+
+During a sync you see each step with a status indicator (checking the destination folder and its drive, connecting to the iPhone, reading the item list, comparing), followed by a progress bar for the transfer and a summary at the end.
 
 ### Sync tasks
 

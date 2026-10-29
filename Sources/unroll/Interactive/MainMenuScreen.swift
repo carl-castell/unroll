@@ -5,24 +5,25 @@ import UnrollStore
 
 struct MainMenuScreen: Screen {
     enum Action: Equatable {
-        case run(UUID), preview(UUID), newTask, manage, status, rebuild, help, settings, quit
+        case run(UUID), preview(UUID), otherTasks, newTask, manage, status, rebuild, help, settings, quit
     }
 
     func run(_ app: AppContext) async -> Next {
         let tasks = app.loadTasks()
         let lastUsedID = app.store.loadSettings().lastUsedTaskID
         let last = tasks.first { $0.id == lastUsedID } ?? tasks.first
-        await printHeader(app, task: last)
+        print("")
+        print(app.noora.format("\(.primary("unroll"))"))
 
-        // Noora's menus have no unselectable lines, so there is no separator and no extra arrow:
-        // the selector is the only marker, and the last used task comes first so Enter runs it.
+        // The last used task comes first, so Enter runs it. Whether its destination and device are
+        // connected shows in the checks once Run or Preview is chosen.
         var choices: [Choice<Action>] = []
         if let last {
             choices.append(Choice("Run \"\(last.name)\"  \(Self.lastRunText(last))", .run(last.id)))
             choices.append(Choice("Preview \"\(last.name)\"  (dry run)", .preview(last.id)))
         }
-        for task in tasks where task.id != last?.id {
-            choices.append(Choice("Run \"\(task.name)\"", .run(task.id)))
+        if tasks.count > 1 {
+            choices.append(Choice("Other tasks…", .otherTasks))
         }
         choices.append(Choice("New sync task", .newTask))
         if !tasks.isEmpty {
@@ -37,6 +38,7 @@ struct MainMenuScreen: Screen {
         switch app.noora.menu("What do you want to do?", choices) {
         case .run(let id): return .screen(SyncScreen(taskID: id, mode: .run))
         case .preview(let id): return .screen(SyncScreen(taskID: id, mode: .preview))
+        case .otherTasks: return .screen(TaskPickerScreen())
         case .newTask: return .screen(NewTaskScreen())
         case .manage: return .screen(ManageTasksScreen())
         case .status: return .screen(StatusScreen())
@@ -47,22 +49,38 @@ struct MainMenuScreen: Screen {
         }
     }
 
-    /// "unroll" and whether the last task's destination and device are connected.
-    private func printHeader(_ app: AppContext, task: SyncTask?) async {
-        print("")
-        print(app.noora.format("\(.primary("unroll"))"))
-        guard let task else { return }
-        let destination = app.resolver.resolve(task.destination) != nil
-        let device = await app.browser.connectedDevices().contains { $0.id == task.device.id }
-        func mark(_ ok: Bool) -> TerminalText.Component { ok ? .success("✓") : .danger("✗") }
-        let status: TerminalText = "\(.muted("Destination")) \(Format.destination(task.destination, resolver: app.resolver)) \(mark(destination))   \(.muted("Device")) \"\(task.device.name)\" \(mark(device))"
-        print(app.noora.format(status))
-    }
-
     static func lastRunText(_ task: SyncTask) -> String {
         guard let lastRun = task.lastRun else { return "(never run)" }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
         return "(last run \(formatter.localizedString(for: lastRun, relativeTo: Date())))"
+    }
+}
+
+/// All tasks; choosing one offers Run or Preview. Whichever runs becomes the last used task.
+struct TaskPickerScreen: Screen {
+    enum Action: Equatable {
+        case run, preview, back
+    }
+
+    func run(_ app: AppContext) async -> Next {
+        let tasks = app.loadTasks()
+        let picked = app.noora.menu(
+            "Which task?",
+            tasks.map { Choice("\($0.name)  \(MainMenuScreen.lastRunText($0))", Optional($0.id)) } + [Choice("Back", nil)],
+            filterable: tasks.count > 10
+        )
+        guard let id = picked, let task = tasks.first(where: { $0.id == id }) else { return .mainMenu }
+
+        let choices = [
+            Choice("Run \"\(task.name)\"", Action.run),
+            Choice("Preview \"\(task.name)\"  (dry run)", .preview),
+            Choice("Back", .back),
+        ]
+        switch app.noora.menu("What do you want to do with \"\(task.name)\"?", choices) {
+        case .run: return .screen(SyncScreen(taskID: task.id, mode: .run))
+        case .preview: return .screen(SyncScreen(taskID: task.id, mode: .preview))
+        case .back: return .screen(TaskPickerScreen())
+        }
     }
 }
