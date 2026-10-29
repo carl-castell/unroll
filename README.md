@@ -100,7 +100,7 @@ A **sync task** is a named configuration you set up once:
 | Device | your iPhone, recognized by its device ID |
 | Destination | a folder on a specific SSD, recognized by its volume UUID |
 | Folder structure | `YYYY/YYYY-MM` |
-| Original vs. edited | keep originals (default), edited where available, or both |
+| Original vs. edited | originals (default), originals plus edit files (AAE), edited instead of original, or originals and edited versions |
 | Add to Apple Photos | off (default); Photos' duplicate check on (default) |
 | Notification when done | off (default) |
 

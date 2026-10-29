@@ -31,8 +31,13 @@ struct PlanBuilderTests {
         #expect(names(plain, .edited) == ["IMG_1.HEIC", "IMG_1.MOV"])
     }
 
-    @Test func bothPolicyKeepsEverything() {
-        #expect(names(editedLivePhoto, .both).count == 5)
+    @Test func bothPolicyKeepsOriginalsAndEditsWithoutEditData() {
+        #expect(names(editedLivePhoto, .both).count == 4)
+        #expect(!names(editedLivePhoto, .both).contains { $0.hasSuffix(".AAE") })
+    }
+
+    @Test func originalWithEditsKeepsOriginalsAndEditData() {
+        #expect(names(editedLivePhoto, .originalWithEdits) == ["IMG_0783.HEIC", "IMG_0783.MOV", "IMG_0783.AAE"])
     }
 
     @Test func skipsAlreadyImportedKeys() {

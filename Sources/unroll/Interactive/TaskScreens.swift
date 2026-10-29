@@ -427,14 +427,18 @@ enum Wizard {
 
     static func pickVersions(_ app: AppContext, current: VersionPolicy) -> VersionPolicy {
         let options = ([current] + VersionPolicy.allCases.filter { $0 != current }).map { Choice(label($0), $0) }
-        return app.noora.menu("Edited photos: which versions should be copied?", options)
+        return app.noora.menu(
+            "Photos you edited on the iPhone: what should be copied?", options,
+            title: "\(Format.wrapped("Live Photo videos are always copied with their photo. An .AAE file is a small file that stores your edits separately from the photo; most apps ignore it and show the original.", width: Format.terminalWidth() - 2, indent: 2))"
+        )
     }
 
     static func label(_ versions: VersionPolicy) -> String {
         switch versions {
-        case .original: "Originals only (with their Live Photo videos)"
-        case .edited: "Edited version where one exists, otherwise the original"
-        case .both: "Both, plus the edit data (AAE)"
+        case .original: "Originals only"
+        case .originalWithEdits: "Originals plus their edit files (.AAE)"
+        case .edited: "Edited version instead of the original, where you edited a photo"
+        case .both: "Originals and edited versions"
         }
     }
 

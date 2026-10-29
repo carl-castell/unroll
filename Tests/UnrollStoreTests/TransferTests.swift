@@ -314,7 +314,7 @@ struct TransferTests {
             item("4", "IMG_2.HEIC", date: june + 60),
         ]
         let photos = FakePhotos()
-        let summary = try await run(versions: .both, photos: photos)
+        let summary = try await run(versions: .originalWithEdits, photos: photos)
 
         #expect(summary.imported == 4)
         #expect(summary.photos?.added == 3)

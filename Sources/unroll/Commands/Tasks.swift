@@ -65,7 +65,7 @@ struct Tasks: AsyncParsableCommand {
         @Option(help: "Folder structure inside the destination. Tokens: YYYY, MM, DD; \"none\" for no folders.")
         var folderTemplate = FolderTemplate.default.pattern
 
-        @Option(help: "Which versions of edited photos to copy: original, edited or both.")
+        @Option(help: "Which versions of edited photos to copy: original, originalWithEdits (plus .AAE edit files), edited or both.")
         var versions = VersionPolicy.original
 
         @Option(

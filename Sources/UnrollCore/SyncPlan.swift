@@ -139,12 +139,12 @@ public enum PlanBuilder {
             guard let parent = item.parentItemID.flatMap({ byID[$0] }) else { return true }
             return isWanted(parent, versions: versions, editedAssets: editedAssets, byID: byID)
         case .sidecar:
-            return versions == .both
+            return versions == .originalWithEdits
         case .edited:
-            return versions != .original
+            return versions == .edited || versions == .both
         case .original:
             switch versions {
-            case .original, .both: return true
+            case .original, .originalWithEdits, .both: return true
             case .edited: return item.assetID.map { !editedAssets.contains($0) } ?? true
             }
         }

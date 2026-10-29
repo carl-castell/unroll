@@ -95,9 +95,12 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
 public enum VersionPolicy: String, Codable, Sendable, CaseIterable {
     /// Originals only (with their Live Photo videos).
     case original
+    /// Originals plus the edit data (AAE) that stores edits made on the iPhone separately. The
+    /// smallest way to keep the edits; most apps ignore AAE files and show the original.
+    case originalWithEdits
     /// The edited version where one exists, otherwise the original.
     case edited
-    /// Originals, edited versions and edit data (AAE).
+    /// Originals and edited versions, without edit data.
     case both
 }
 

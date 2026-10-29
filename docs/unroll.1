@@ -73,7 +73,11 @@ A sync task copies new photos and videos from one iPhone or iPad to one folder. 
 .IP \(bu 2
 \fBSeparate Other folder\fR: off by default. When on, only photos and videos taken with this iPhone's camera go into the folder structure. Everything else goes into \fBOther/YYYY\fR (or one \fBOther\fR folder without a structure): screenshots, screen recordings, images saved from apps or the web, and photos from other phones or cameras. unroll recognizes this iPhone's photos by the camera model stored in each file, for example "iPhone 15 Pro". While setting up, it reads the models from a sample of the photos on the iPhone and lets you tick which are yours; tick earlier iPhones too if their photos are on this one. A Live Photo's video and edit data always stay with their photo. On the command line: \fBunroll tasks add … \-\-camera\-model "iPhone 15 Pro"\fR.
 .IP \(bu 2
-\fBOriginal vs. edited\fR: originals only (default), the edited version where one exists, or both plus the edit data (AAE).
+\fBOriginal vs. edited\fR, for photos you edited on the iPhone (Live Photo videos always come with their photo):
+  \- *Originals only* (default).
+  \- *Originals plus their edit files (.AAE)*: the smallest way to keep edits. An AAE file stores the edits separately from the photo; most apps ignore it and show the original.
+  \- *Edited version instead of the original* where you edited a photo (\fBIMG_E1234.HEIC\fR); unedited photos as the original.
+  \- *Originals and edited versions*: both files, without AAE.
 .IP \(bu 2
 \fBAdd to Apple Photos\fR: off by default. See \fBunroll help photos\-referenced\fR.
 .IP \(bu 2

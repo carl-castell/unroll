@@ -8,7 +8,11 @@ A sync task copies new photos and videos from one iPhone or iPad to one folder. 
 - **Destination**: a folder on a drive. The drive is recognized by its volume UUID (or a network share by its address), never by its name or where it's mounted.
 - **Folder structure**: date folders inside the destination, by default `YYYY/YYYY-MM` (for example `2026/2026-06`). Tokens: `YYYY`, `MM`, `DD`. Or no folders: all files directly in the destination folder (`--folder-template none`). When names repeat, as iPhone numbers do over the years, the later file gets ` (1)` added.
 - **Separate Other folder**: off by default. When on, only photos and videos taken with this iPhone's camera go into the folder structure. Everything else goes into `Other/YYYY` (or one `Other` folder without a structure): screenshots, screen recordings, images saved from apps or the web, and photos from other phones or cameras. unroll recognizes this iPhone's photos by the camera model stored in each file, for example "iPhone 15 Pro". While setting up, it reads the models from a sample of the photos on the iPhone and lets you tick which are yours; tick earlier iPhones too if their photos are on this one. A Live Photo's video and edit data always stay with their photo. On the command line: `unroll tasks add … --camera-model "iPhone 15 Pro"`.
-- **Original vs. edited**: originals only (default), the edited version where one exists, or both plus the edit data (AAE).
+- **Original vs. edited**, for photos you edited on the iPhone (Live Photo videos always come with their photo):
+  - *Originals only* (default).
+  - *Originals plus their edit files (.AAE)*: the smallest way to keep edits. An AAE file stores the edits separately from the photo; most apps ignore it and show the original.
+  - *Edited version instead of the original* where you edited a photo (`IMG_E1234.HEIC`); unedited photos as the original.
+  - *Originals and edited versions*: both files, without AAE.
 - **Add to Apple Photos**: off by default. See `unroll help photos-referenced`.
 - **Notification when done**: off by default.
 
