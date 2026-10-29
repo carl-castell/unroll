@@ -20,18 +20,27 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
 
     func open(unlockTimeout: Duration) async throws(DeviceError) {
         camera.delegate = self
-        do {
-            try await camera.requestOpenSession()
-        } catch {
-            throw .sessionFailed(error.localizedDescription)
-        }
-
         let deadline = ContinuousClock.now + unlockTimeout
-        while camera.isAccessRestrictedAppleDevice {
-            guard ContinuousClock.now < deadline else {
-                throw .accessRestricted(name: info.name)
+        while true {
+            // A locked or untrusted iPhone refuses the session, so wait for the restriction to lift first.
+            while camera.isAccessRestrictedAppleDevice {
+                guard ContinuousClock.now < deadline else {
+                    throw .accessRestricted(name: info.name)
+                }
+                try await pause(.milliseconds(250))
             }
-            try await pause()
+            do {
+                try await camera.requestOpenSession()
+                return
+            } catch {
+                // The restriction flag can lag behind the device state; retry until the deadline.
+                guard ContinuousClock.now < deadline else {
+                    throw camera.isAccessRestrictedAppleDevice
+                        ? .accessRestricted(name: info.name)
+                        : .sessionFailed(error.localizedDescription)
+                }
+                try await pause(.seconds(1))
+            }
         }
     }
 
