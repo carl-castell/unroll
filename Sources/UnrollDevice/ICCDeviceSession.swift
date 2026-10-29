@@ -11,6 +11,8 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
 
     private var catalogComplete = false
     private var removed = false
+    /// The files behind the listed items' `deviceItemID`s.
+    private var filesByID: [String: ICCameraFile] = [:]
 
     init(camera: ICCameraDevice, info: DeviceInfo) {
         self.camera = camera
@@ -45,7 +47,8 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
         }
         progress(100)
         let timeZone = Self.systemTimeZone()
-        return mediaFiles.flatMap { Self.items(for: $0, timeZone: timeZone) }
+        filesByID = [:]
+        return mediaFiles.flatMap { items(for: $0, timeZone: timeZone) }
     }
 
     public func close() async {
@@ -66,17 +69,13 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
 
     // MARK: Mapping
 
-    static func itemID(_ item: ICCameraItem) -> String {
-        String(item.ptpObjectHandle)
-    }
-
     /// Maps a media file and its attached files. On iPhones, a Live Photo's MOV and any AAE/DAT
     /// edit data arrive as `sidecarFiles` of the photo; edited renderings (IMG_E1234) are separate
     /// media files that share the original's `relatedUUID`.
-    static func items(for file: ICCameraFile, timeZone: TimeZone) -> [DeviceItem] {
+    private func items(for file: ICCameraFile, timeZone: TimeZone) -> [DeviceItem] {
         let assetID = file.relatedUUID.map { String($0.prefix { $0 != "/" }) }
-        let kind = kind(of: file)
-        let role: ItemRole = isEdited(file) ? .edited : .original
+        let kind = Self.kind(of: file)
+        let role: ItemRole = Self.isEdited(file) ? .edited : .original
         let main = item(for: file, kind: kind, role: role, assetID: assetID, parent: nil, timeZone: timeZone)
         let attached = (file.sidecarFiles ?? []).compactMap { $0 as? ICCameraFile }.map { sidecar in
             let sidecarKind = Self.kind(of: sidecar)
@@ -86,15 +85,18 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
         return [main] + attached
     }
 
-    private static func item(
+    private func item(
         for file: ICCameraFile, kind: MediaKind, role: ItemRole, assetID: String?, parent: DeviceItem?,
         timeZone: TimeZone
     ) -> DeviceItem {
+        // ImageCaptureCore's ptpObjectHandle isn't unique on iPhones, so the session numbers items itself.
+        let id = String(filesByID.count + 1)
+        filesByID[id] = file
         // ImageCaptureCore reports the photo's clock time interpreted in the Mac's time zone; undo that.
         let date = (file.creationDate ?? file.fileCreationDate).map { LocalTimestamp(date: $0, interpretedIn: timeZone) }
         return DeviceItem(
-            deviceItemID: itemID(file),
-            filename: file.name ?? file.originalFilename ?? itemID(file),
+            deviceItemID: id,
+            filename: file.name ?? file.originalFilename ?? "item-\(id)",
             originalFilename: file.originalFilename,
             captureDate: date ?? parent?.captureDate,
             size: Int64(file.fileSize),
