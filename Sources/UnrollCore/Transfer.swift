@@ -11,8 +11,9 @@ extension SyncEngine {
     /// calling task is cancelled (`cancelled`).
     /// - Parameter confirmed: whether the user confirmed the run. Required when `plan.confirmation` is set;
     ///   the core only signals this, and the interface decides how to ask.
+    /// - Parameter photos: when set, imported files are then added to Apple Photos.
     public func execute(
-        _ plan: SyncPlan, confirmed: Bool, events: @escaping EventSink
+        _ plan: SyncPlan, confirmed: Bool, photos: (any PhotosImporting)? = nil, events: @escaping EventSink
     ) async throws(SyncError) -> SyncSummary {
         if let reason = plan.confirmation, !confirmed {
             throw .confirmationRequired(reason)
@@ -51,6 +52,7 @@ extension SyncEngine {
         events(.transferStarted(totalItems: items.count, totalBytes: totalBytes))
 
         var namer = GroupNamer(items: items, exists: writer.fileExists(atRelativePath:))
+        var forPhotos: [(path: String, groupKey: String)] = []
         for (index, entry) in items.enumerated() {
             // Cancelling the task (e.g. Ctrl-C) stops between files; the current file always finishes.
             if Task.isCancelled {
@@ -62,8 +64,13 @@ extension SyncEngine {
             switch await transfer(entry, plan: plan, writer: writer, namer: &namer, events: events) {
             case .success(let outcome):
                 switch outcome {
-                case .imported: summary.imported += 1
-                case .duplicate: summary.duplicates += 1
+                case .imported(let path):
+                    summary.imported += 1
+                    if entry.item.role != .sidecar {
+                        forPhotos.append((path, entry.item.parentItemID ?? entry.item.deviceItemID))
+                    }
+                case .duplicate:
+                    summary.duplicates += 1
                 }
                 summary.bytes += entry.item.size
                 events(.fileDone(entry, outcome))
@@ -76,6 +83,13 @@ extension SyncEngine {
                 }
             }
             if summary.stoppedBecause != nil { break }
+        }
+
+        // After Ctrl-C, Photos is left for the next run, which retries pending files.
+        if let photos, !summary.cancelled {
+            summary.photos = await addToPhotos(
+                newPaths: forPhotos, writer: writer, root: plan.destination.root, photos: photos, events: events
+            )
         }
 
         summary.duration = start.duration(to: .now)

@@ -29,6 +29,10 @@ public protocol DestinationWriter: Sendable {
     /// Removes a temp file and its journal entry. Never touches anything outside `partialDirectory`.
     func abandonTransfer(tempName: String, tempFile: URL?)
 
+    /// Relative paths of files that should be in Apple Photos but aren't yet.
+    func pendingPhotosImports() throws -> [String]
+    func markPhotosImport(_ relativePaths: [String], state: PhotosImportState) throws
+
     func startRun(taskID: UUID, deviceID: DeviceID) throws -> Int64
     func finishRun(_ runID: Int64, summary: SyncSummary)
 }
@@ -79,6 +83,8 @@ public struct SyncSummary: Sendable, Equatable {
     public var cancelled = false
     /// The destination index's ID after the run, for the task's confirmation snapshot.
     public var indexID: String?
+    /// Set when the files were added to Apple Photos.
+    public var photos: PhotosImportResult?
 
     public init() {}
 

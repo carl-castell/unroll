@@ -34,6 +34,9 @@ public enum SyncEvent: Sendable {
     case fileProgress(PlannedItem, bytes: Int64)
     case fileDone(PlannedItem, FileOutcome)
     case fileFailed(PlannedItem, ItemFailure)
+    case photosImportStarted(files: Int)
+    case photosImportProgress(done: Int, total: Int)
+    case photosImportFinished(PhotosImportResult)
     case finished(SyncSummary)
 }
 

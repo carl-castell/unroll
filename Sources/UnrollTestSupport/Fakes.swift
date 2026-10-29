@@ -138,6 +138,25 @@ public struct NoWriters: DestinationOpening {
     }
 }
 
+/// Records what would have been added to Photos, and can refuse like a denied Automation permission.
+public final class FakePhotos: PhotosImporting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var calls: [[String]] = []
+    public var error: PhotosImportError?
+
+    public init() {}
+
+    /// File names per import call.
+    public var batches: [[String]] {
+        lock.withLock { calls }
+    }
+
+    public func importFiles(_ files: [URL]) async throws(PhotosImportError) {
+        if let error { throw error }
+        lock.withLock { calls.append(files.map(\.lastPathComponent)) }
+    }
+}
+
 public final class EventRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [SyncEvent] = []
