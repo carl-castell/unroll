@@ -111,19 +111,15 @@ struct PreviewScreen: Screen {
             return .quit
         }
 
+        let space = Format.space(plan)
         print("")
-        app.noora.table(
-            headers: ["Month", "New items", "Size"],
-            rows: summary.months.map { [String(format: "%04d-%02d", $0.year, $0.month), "\($0.count)", Format.bytes($0.bytes)] }
-                + [["Total", "\(summary.newCount)", Format.bytes(summary.newBytes)]]
-        )
-        print(app.noora.format("\(.muted("Into")) \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))"))
-        let folders = summary.folders
-        print(app.noora.format("\(.muted("Folders")) \(folders.prefix(6).joined(separator: ", "))\(folders.count > 6 ? " and \(folders.count - 6) more" : "")"))
+        print(app.noora.format("  \(.primary(Format.newItems(summary)))"))
+        print(app.noora.format(space.fits ? "  \(.muted(space.text))" : "  \(.danger(space.text))"))
+        print("")
 
         while true {
-            let choices = [Choice("Run now", Action.runNow), Choice("Show full list", .list), Choice("Back", .back)]
-            switch app.noora.menu("Copy these \(summary.newCount) items?", choices) {
+            let choices = [Choice("Copy now", Action.runNow), Choice("Show files", .list), Choice("Back", .back)]
+            switch app.noora.menu("Copy these \(summary.newCount.formatted()) files?", choices) {
             case .runNow:
                 // Copy exactly what was previewed, unless the device or destination changed meanwhile.
                 guard await app.engine.isStillValid(plan, for: task) else {
@@ -131,7 +127,8 @@ struct PreviewScreen: Screen {
                     app.noora.warning("The device or destination changed since the preview. Scanning again.")
                     return .screen(SyncScreen(taskID: task.id, mode: .run))
                 }
-                return await TransferFlow.run(task: task, plan: plan, app: app)
+                // Choosing "Copy now" after seeing the preview is the confirmation; don't ask again.
+                return await TransferFlow.run(task: task, plan: plan, app: app, confirmed: true)
             case .list:
                 let rows = plan.items.map { [$0.item.filename, $0.key.captureDate.description, Format.bytes($0.item.size), $0.folder] }
                 try? app.noora.paginatedTable(headers: ["File", "Taken", "Size", "Folder"], rows: rows, pageSize: 20)
@@ -147,7 +144,8 @@ struct PreviewScreen: Screen {
 /// After a clean run unroll quits; after problems it returns to the menu.
 @MainActor
 enum TransferFlow {
-    static func run(task: SyncTask, plan: SyncPlan, app: AppContext) async -> Next {
+    /// - Parameter confirmed: the user already agreed to this plan, e.g. in the preview.
+    static func run(task: SyncTask, plan: SyncPlan, app: AppContext, confirmed: Bool = false) async -> Next {
         let engine = app.engine
         guard !plan.items.isEmpty else {
             await engine.close(plan)
@@ -156,7 +154,7 @@ enum TransferFlow {
         }
         let totalBytes = plan.items.reduce(Int64(0)) { $0 + $1.item.size }
 
-        if let reason = plan.confirmation {
+        if let reason = plan.confirmation, !confirmed {
             app.noora.info(.alert("\(confirmationTitle(reason, task: task))", takeaways: [
                 "Task: \(task.name)",
                 "From: \(task.device.name)",

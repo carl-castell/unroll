@@ -24,7 +24,7 @@ Run without arguments in a terminal, unroll opens an interactive menu. Outside a
 .SH COMMANDS
 .SS run <task>
 .PP
-Checks that the task's destination and device are connected, compares the device with the destination's index and copies only new items. \fB\-\-dry\-run\fR only shows what would be copied, by month; \fB\-\-list\fR adds every item. \fB\-\-yes\fR confirms a first run (or a run after the task's device, destination or index changed) without asking. \fB\-\-json\fR writes one JSON object per line, ending with \fBresult\fR and the exit code. Ctrl\-C finishes the current file, then stops.
+Checks that the task's destination and device are connected, compares the device with the destination's index and copies only new items. \fB\-\-dry\-run\fR only shows how many files would be copied, their size and the space left afterwards; \fB\-\-list\fR adds a breakdown by month and every file. \fB\-\-yes\fR confirms a first run (or a run after the task's device, destination or index changed) without asking. \fB\-\-json\fR writes one JSON object per line, ending with \fBresult\fR and the exit code. Ctrl\-C finishes the current file, then stops.
 .SS status
 .PP
 Shows the connected devices and, for each task, whether its device and destination are connected, its last run and the number of files in its destination. \fB\-\-json\fR prints a single object.

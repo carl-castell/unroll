@@ -114,7 +114,7 @@ Choose **More for "…" → Preview** in the menu, or run:
 unroll run "iPhone → SSD" --dry-run
 ```
 
-You'll see how many new items would be copied, their total size, and a breakdown by month. In the interactive menu you can then choose **Run now**, which copies exactly what the preview showed without scanning the iPhone again.
+You'll see how many new files would be copied, their total size, and how much space is left on the drive afterwards. In the interactive menu you can then choose **Copy now**, which copies exactly what the preview showed without reading the iPhone again or asking a second time. `--dry-run --list` also lists every file and a breakdown by month.
 
 ### Direct and non-interactive use
 

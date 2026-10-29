@@ -2,7 +2,7 @@ import Foundation
 
 extension SyncEngine {
     /// Space kept free on the destination beyond the files being copied.
-    static let spaceMargin: Int64 = 100_000_000
+    public static let spaceMargin: Int64 = 100_000_000
 
     /// Copies the plan's items: download into the destination's temp area, verify size and hash,
     /// move into place without overwriting, and only then record in the index.

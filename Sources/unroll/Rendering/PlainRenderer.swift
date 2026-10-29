@@ -99,19 +99,14 @@ struct PlainRenderer: RunRenderer {
             print("\nNothing new to copy.")
             return
         }
-        print("\nNew items by month:")
-        for month in summary.months {
-            let label = String(format: "%04d-%02d", month.year, month.month)
-            print("  \(label)  \(String(month.count).leftPadded(to: 6))  \(Format.bytes(month.bytes).leftPadded(to: 10))")
-        }
-        print("\nDestination folders in \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName)):")
-        for folder in summary.folders.prefix(listItems ? .max : 12) {
-            print("  \(folder)")
-        }
-        if !listItems, summary.folders.count > 12 {
-            print("  … \(summary.folders.count - 12) more")
-        }
+        print("\n\(Format.newItems(summary))")
+        print(Format.space(plan).text)
         if listItems {
+            print("\nNew items by month:")
+            for month in summary.months {
+                let label = String(format: "%04d-%02d", month.year, month.month)
+                print("  \(label)  \(String(month.count).leftPadded(to: 6))  \(Format.bytes(month.bytes).leftPadded(to: 10))")
+            }
             print("\nNew items:")
             for entry in plan.items {
                 print("  \(entry.folder)/\(entry.item.filename)  \(entry.key.captureDate)  \(Format.bytes(entry.item.size))")
@@ -192,6 +187,22 @@ enum Format {
 
     static func seconds(_ duration: Duration) -> Double {
         Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
+    }
+
+    /// "1,234 new files · 18.4 GB".
+    static func newItems(_ summary: PlanSummary) -> String {
+        "\(summary.newCount.formatted()) new \(summary.newCount == 1 ? "file" : "files") · \(bytes(summary.newBytes))"
+    }
+
+    /// Where the files go and the space left afterwards. `fits` is false when the drive is too full.
+    static func space(_ plan: SyncPlan) -> (text: String, fits: Bool) {
+        let into = "Into \(destination(plan.destinationRoot, volumeName: plan.destination.volumeName))"
+        guard let available = plan.destination.availableBytes else { return (into, true) }
+        let left = available - plan.summary.newBytes
+        if left < SyncEngine.spaceMargin {
+            return ("\(into) · not enough space: \(bytes(available)) free, \(bytes(plan.summary.newBytes)) needed", false)
+        }
+        return ("\(into) · \(bytes(left)) free after copying", true)
     }
 
     /// The terminal's width in columns, or 80 when it can't be read.

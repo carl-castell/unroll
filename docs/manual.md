@@ -24,7 +24,7 @@ Run without arguments in a terminal, unroll opens an interactive menu. Outside a
 
 ## run <task>
 
-Checks that the task's destination and device are connected, compares the device with the destination's index and copies only new items. `--dry-run` only shows what would be copied, by month; `--list` adds every item. `--yes` confirms a first run (or a run after the task's device, destination or index changed) without asking. `--json` writes one JSON object per line, ending with `result` and the exit code. Ctrl-C finishes the current file, then stops.
+Checks that the task's destination and device are connected, compares the device with the destination's index and copies only new items. `--dry-run` only shows how many files would be copied, their size and the space left afterwards; `--list` adds a breakdown by month and every file. `--yes` confirms a first run (or a run after the task's device, destination or index changed) without asking. `--json` writes one JSON object per line, ending with `result` and the exit code. Ctrl-C finishes the current file, then stops.
 
 ## status
 
