@@ -24,7 +24,8 @@ public final class ICCDeviceBrowser: NSObject, DeviceBrowsing {
 
     public func connectedDevices() async -> [DeviceInfo] {
         await waitForEnumeration()
-        return cameras.map(Self.info(for:))
+        // A closure, not a method reference: Swift 6.0 treats the reference as nonisolated.
+        return cameras.map { Self.info(for: $0) }
     }
 
     public func open(_ id: DeviceID, unlockTimeout: Duration) async throws(DeviceError) -> any DeviceSession {
