@@ -11,6 +11,7 @@ unroll
 unroll run <task> [\-\-dry\-run] [\-\-yes] [\-\-json] [\-\-list]
 unroll status [\-\-json]
 unroll tasks [list | add | remove]
+unroll arrange [<task>] [\-\-dry\-run] [\-\-list] [\-\-yes]
 unroll rebuild\-index [<task>] [\-\-yes]
 unroll scan
 unroll help [<topic>]
@@ -30,7 +31,10 @@ Checks that the task's destination and device are connected, compares the device
 Shows the connected devices and, for each task, whether its device and destination are connected, its last run and the number of files in its destination. \fB\-\-json\fR prints a single object.
 .SS tasks
 .PP
-\fBtasks list\fR shows all tasks. \fBtasks add \-\-name <name> \-\-destination <folder>\fR creates one without the wizard; \fB\-\-device\fR, \fB\-\-folder\-template\fR and \fB\-\-versions\fR are optional. \fBtasks remove <task>\fR deletes a task but never the files or the index in its destination.
+\fBtasks list\fR shows all tasks. \fBtasks add \-\-name <name> \-\-destination <folder>\fR creates one without the wizard; \fB\-\-device\fR, \fB\-\-folder\-template\fR (or \fBnone\fR), \fB\-\-versions\fR and \fB\-\-camera\-model\fR (repeatable) are optional. \fBtasks remove <task>\fR deletes a task but never the files or the index in its destination.
+.SS arrange
+.PP
+Moves the photos and videos already in a task's destination into its folder structure, keeping a Live Photo's video and edit data with their photo. Files are only moved, never replaced or deleted; files without a capture time, other files and files added to Apple Photos stay. Every move is listed in \fB.unroll/arrange\-<time>.tsv\fR. \fB\-\-dry\-run\fR only shows what would move. Asks for confirmation unless \fB\-\-yes\fR is given; without a terminal, \fB\-\-yes\fR is required. See \fBunroll help arrange\fR.
 .SS rebuild\-index
 .PP
 Recreates a task's index from the files in its destination. Files are only read. Asks for confirmation unless \fB\-\-yes\fR is given; without a terminal, \fB\-\-yes\fR is required.
@@ -103,7 +107,44 @@ Tasks and settings: \fB~/.config/unroll/\fR (or \fB$XDG_CONFIG_HOME/unroll\fR).
 Logs: \fB~/Library/Logs/unroll/\fR, one file per day, kept for 90 days.
 .SS Managing tasks
 .PP
-In the menu, \fBMore for "…"\fR holds preview, edit, delete, rebuild index and history for a task; \fBOther tasks…\fR switches to another task or creates a new one. On the command line: \fBunroll tasks list\fR, \fBunroll tasks add\fR and \fBunroll tasks remove\fR. Removing a task never touches the files or the index in its destination.
+In the menu, \fBMore for "…"\fR holds preview, edit, arrange existing files, delete, rebuild index and history for a task; \fBOther tasks…\fR switches to another task or creates a new one. On the command line: \fBunroll tasks list\fR, \fBunroll tasks add\fR and \fBunroll tasks remove\fR. Removing a task never touches the files or the index in its destination.
+.SH ARRANGING EXISTING FILES
+.PP
+unroll can move the photos and videos already in a task's destination into the task's folder structure. That helps when the folder holds photos copied earlier in another layout, for example everything in one folder, or when you changed the task's folder structure and want the older files to follow.
+.SS When it's offered
+.IP \(bu 2
+After you save a new task whose folder already has photos in another layout.
+.IP \(bu 2
+After you change a task's folder structure or its Other folder setting.
+.IP \(bu 2
+Any time under \fBMore for "…" → Arrange existing files…\fR, or with \fBunroll arrange "<task>"\fR.
+.PP
+It first shows how many files would move, with a few examples, and asks. Nothing moves unless you agree.
+.SS What moves and what stays
+.IP \(bu 2
+Photos and videos with a capture time move into the folder for that time. A Live Photo's video and its edit data (AAE) move with the photo and keep matching names.
+.IP \(bu 2
+With a separate Other folder, the camera model in each file decides between the structure and Other.
+.IP \(bu 2
+Files without a capture time stay where they are, because there's no date to sort them by. So do files that aren't photos or videos.
+.IP \(bu 2
+Files already added to Apple Photos as referenced files stay too; moving them would make Photos lose them.
+.SS Safety
+.IP \(bu 2
+Files are only moved within the destination. They are never copied, replaced or deleted. If a name is taken in the target folder, the file gets \fB (1)\fR added, and a Live Photo's video gets the same.
+.IP \(bu 2
+The index is updated with every move, so the files stay known and aren't copied again.
+.IP \(bu 2
+A folder without an index gets one first.
+.IP \(bu 2
+Every move is listed in \fB.unroll/arrange\-<date>\-<time>.tsv\fR (old path, new path), so it can be undone by hand.
+.IP \(bu 2
+Folders left empty by the moves are removed.
+.IP \(bu 2
+Ctrl\-C finishes the current move, then stops; arranging again moves the rest.
+.SS On the command line
+.PP
+\fBunroll arrange "<task>" \-\-dry\-run\fR shows what would move (\fB\-\-list\fR shows every move). Without a terminal, \fB\-\-yes\fR is required to move anything; otherwise unroll stops with exit code 5.
 .SH APPLE PHOTOS WITH REFERENCED FILES
 .PP
 unroll can add new files to Apple Photos after each sync. Photos then shows them without copying them into its library: the originals stay in the destination folder, and the library stays small.

@@ -127,6 +127,7 @@ unroll run "iPhone → SSD" --yes      # skip the first-run confirmation
 unroll run "iPhone → SSD" --json     # machine-readable output
 unroll status                        # devices, and whether each task is ready
 unroll tasks                         # list tasks; also tasks add / tasks remove
+unroll arrange "iPhone → SSD"        # move files already there into the folder structure
 unroll rebuild-index                 # rebuild the index from files on the SSD
 unroll help <topic>                  # detailed help
 ```

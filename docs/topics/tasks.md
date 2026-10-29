@@ -37,4 +37,4 @@ The first run of a task shows what will be copied and asks once. Later runs star
 
 ## Managing tasks
 
-In the menu, **More for "…"** holds preview, edit, delete, rebuild index and history for a task; **Other tasks…** switches to another task or creates a new one. On the command line: `unroll tasks list`, `unroll tasks add` and `unroll tasks remove`. Removing a task never touches the files or the index in its destination.
+In the menu, **More for "…"** holds preview, edit, arrange existing files, delete, rebuild index and history for a task; **Other tasks…** switches to another task or creates a new one. On the command line: `unroll tasks list`, `unroll tasks add` and `unroll tasks remove`. Removing a task never touches the files or the index in its destination.

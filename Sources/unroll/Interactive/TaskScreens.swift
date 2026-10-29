@@ -49,6 +49,8 @@ struct NewTaskScreen: Screen {
             "It's now preselected in the menu: press Enter to run it.",
             "The first run shows what will be copied and asks once.",
         ]))
+        // A folder that already has photos may hold them in another layout.
+        await ArrangeFlow.offer(task, app: app, automatic: true)
         return .mainMenu
     }
 }
@@ -63,6 +65,7 @@ struct EditTaskScreen: Screen {
 
     func run(_ app: AppContext) async -> Next {
         while var task = app.task(taskID) {
+            let before = task
             var choices: [Choice<Action>] = [
                 Choice("Name: \(task.name)", .name),
                 Choice("Device: \(task.device.name)", .device),
@@ -120,6 +123,11 @@ struct EditTaskScreen: Screen {
                 try app.save(task)
             } catch {
                 app.showError("The change couldn't be saved.", takeaways: [String(describing: error)])
+                continue
+            }
+            // Earlier files are still in the old layout; offer to move them.
+            if task.folderTemplate != before.folderTemplate || task.cameraModels != before.cameraModels {
+                await ArrangeFlow.offer(task, app: app, automatic: true)
             }
         }
         return .mainMenu
@@ -337,6 +345,7 @@ enum Wizard {
                 takeaways: [
                     "unroll recognizes photos and videos that are already there by name, size and capture time, and doesn't copy them again.",
                     "The first run records them in its index before copying.",
+                    "Once the task is saved, unroll offers to move them into its folder structure.",
                 ]
             ))
         }

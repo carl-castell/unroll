@@ -9,6 +9,7 @@ unroll
 unroll run <task> [--dry-run] [--yes] [--json] [--list]
 unroll status [--json]
 unroll tasks [list | add | remove]
+unroll arrange [<task>] [--dry-run] [--list] [--yes]
 unroll rebuild-index [<task>] [--yes]
 unroll scan
 unroll help [<topic>]
@@ -32,7 +33,11 @@ Shows the connected devices and, for each task, whether its device and destinati
 
 ## tasks
 
-`tasks list` shows all tasks. `tasks add --name <name> --destination <folder>` creates one without the wizard; `--device`, `--folder-template` and `--versions` are optional. `tasks remove <task>` deletes a task but never the files or the index in its destination.
+`tasks list` shows all tasks. `tasks add --name <name> --destination <folder>` creates one without the wizard; `--device`, `--folder-template` (or `none`), `--versions` and `--camera-model` (repeatable) are optional. `tasks remove <task>` deletes a task but never the files or the index in its destination.
+
+## arrange
+
+Moves the photos and videos already in a task's destination into its folder structure, keeping a Live Photo's video and edit data with their photo. Files are only moved, never replaced or deleted; files without a capture time, other files and files added to Apple Photos stay. Every move is listed in `.unroll/arrange-<time>.tsv`. `--dry-run` only shows what would move. Asks for confirmation unless `--yes` is given; without a terminal, `--yes` is required. See `unroll help arrange`.
 
 ## rebuild-index
 

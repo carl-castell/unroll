@@ -14,7 +14,7 @@ struct Unroll: AsyncParsableCommand {
             Show one with 'unroll help <topic>'; 'man unroll' has everything.
             """,
         version: unrollVersion,
-        subcommands: [Run.self, Status.self, Tasks.self, RebuildIndex.self, Scan.self]
+        subcommands: [Run.self, Status.self, Tasks.self, Arrange.self, RebuildIndex.self, Scan.self]
     )
 
     /// Without a command: the interactive menu in a terminal, help everywhere else.

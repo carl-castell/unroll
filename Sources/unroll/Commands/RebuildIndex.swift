@@ -28,7 +28,7 @@ struct RebuildIndex: AsyncParsableCommand {
     @MainActor
     func run() async throws {
         let store = TaskStore()
-        let task = try resolveTask(store: store)
+        let task = try resolveTask(task, store: store)
         guard let destination = VolumeResolver().resolve(task.destination) else {
             printError(SyncError.destinationNotConnected(volumeName: task.destination.volumeName).message)
             throw UnrollExit.destinationMissing
@@ -71,17 +71,19 @@ struct RebuildIndex: AsyncParsableCommand {
         if result.duplicateKeys > 0 { print("  \(result.duplicateKeys) skipped because another file has the same capture time, size and name") }
     }
 
-    private func resolveTask(store: TaskStore) throws -> SyncTask {
-        if let task { return try loadTask(task, from: store) }
-        let tasks = (try? store.loadTasks()) ?? []
-        guard tasks.count == 1 else {
-            printError(tasks.isEmpty
-                ? "No sync tasks yet. Create one with `unroll tasks add`."
-                : "Several tasks exist; name one: \(tasks.map { "\"\($0.name)\"" }.joined(separator: ", ")).")
-            throw UnrollExit.invalidTask
-        }
-        return tasks[0]
+}
+
+/// The named task, or the only one when no name is given.
+func resolveTask(_ name: String?, store: TaskStore) throws -> SyncTask {
+    if let name { return try loadTask(name, from: store) }
+    let tasks = (try? store.loadTasks()) ?? []
+    guard tasks.count == 1 else {
+        printError(tasks.isEmpty
+            ? "No sync tasks yet. Create one with `unroll tasks add`."
+            : "Several tasks exist; name one: \(tasks.map { "\"\($0.name)\"" }.joined(separator: ", ")).")
+        throw UnrollExit.invalidTask
     }
+    return tasks[0]
 }
 
 enum Terminal {

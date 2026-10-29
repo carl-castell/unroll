@@ -73,7 +73,7 @@ struct MainMenuScreen: Screen {
 /// One task's other options. Back returns to that task's home.
 struct TaskMoreScreen: Screen {
     enum Action: Equatable {
-        case preview, edit, delete, rebuild, history, back
+        case preview, edit, arrange, delete, rebuild, history, back
     }
 
     let taskID: UUID
@@ -83,6 +83,7 @@ struct TaskMoreScreen: Screen {
         let choices = [
             Choice("Preview (dry run)", Action.preview),
             Choice("Edit task", .edit),
+            Choice("Arrange existing files…", .arrange),
             Choice("Delete task", .delete),
             Choice("Rebuild index", .rebuild),
             Choice("History", .history),
@@ -91,6 +92,7 @@ struct TaskMoreScreen: Screen {
         switch app.noora.menu("More for \"\(task.name)\"", choices) {
         case .preview: return .screen(SyncScreen(taskID: task.id, mode: .preview))
         case .edit: return .screen(EditTaskScreen(taskID: task.id))
+        case .arrange: return .screen(ArrangeScreen(taskID: task.id))
         case .delete: return deleteTask(task, app: app)
         case .rebuild: return .screen(RebuildScreen(taskID: task.id))
         case .history: return .screen(HistoryScreen(taskID: task.id))

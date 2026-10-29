@@ -8,7 +8,7 @@
 
 import Foundation
 
-let topicOrder = ["setup", "tasks", "photos-referenced", "troubleshooting", "exit-codes", "keys"]
+let topicOrder = ["setup", "tasks", "arrange", "photos-referenced", "troubleshooting", "exit-codes", "keys"]
 let root = URL(filePath: FileManager.default.currentDirectoryPath)
 let checkOnly = CommandLine.arguments.contains("--check")
 
