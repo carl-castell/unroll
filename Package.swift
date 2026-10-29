@@ -16,6 +16,7 @@ let package = Package(
             dependencies: [
                 "UnrollCore",
                 "UnrollDevice",
+                "UnrollStore",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
@@ -25,6 +26,12 @@ let package = Package(
             dependencies: ["UnrollCore"],
             linkerSettings: [.linkedFramework("ImageCaptureCore")]
         ),
+        .target(
+            name: "UnrollStore",
+            dependencies: ["UnrollCore"],
+            linkerSettings: [.linkedLibrary("sqlite3")]
+        ),
         .testTarget(name: "UnrollCoreTests", dependencies: ["UnrollCore"]),
+        .testTarget(name: "UnrollStoreTests", dependencies: ["UnrollStore"]),
     ]
 )
