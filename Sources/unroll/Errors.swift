@@ -5,6 +5,8 @@ import UnrollStore
 
 /// Prints to standard error, so messages don't mix with machine-readable output.
 func printError(_ message: String) {
+    // Keep the order of mixed output when stdout is piped and therefore buffered.
+    fflush(stdout)
     FileHandle.standardError.write(Data((message + "\n").utf8))
 }
 
