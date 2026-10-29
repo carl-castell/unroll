@@ -3,9 +3,10 @@ import Noora
 import UnrollCore
 import UnrollStore
 
+/// The main menu: run or preview the last used task, pick another task, or open More… for the rest.
 struct MainMenuScreen: Screen {
     enum Action: Equatable {
-        case run(UUID), preview(UUID), otherTasks, newTask, manage, status, rebuild, help, settings, quit
+        case run(UUID), preview(UUID), otherTasks, newTask, more, quit
     }
 
     func run(_ app: AppContext) async -> Next {
@@ -20,36 +21,30 @@ struct MainMenuScreen: Screen {
             : "\(.muted("Connected:")) \(devices.map { "\($0.name) (\($0.productKind ?? "device"))" }.joined(separator: ", "))"
         print(app.noora.format(connected))
 
-        // The last used task comes first, so Enter runs it.
+        // The last used task comes first, so Enter runs it. The first column holds its readiness dot.
         var choices: [Choice<Action>] = []
         if let last {
             let ready = Self.readiness(last, devices: devices, app: app)
-            choices.append(Choice("Run \"\(last.name)\" \(ready)  \(Self.lastRunText(last))", .run(last.id)))
-            choices.append(Choice("Preview \"\(last.name)\" \(ready)  (dry run)", .preview(last.id)))
+            choices.append(Choice("\(ready) Run \"\(last.name)\"  \(Self.lastRunText(last))", .run(last.id)))
+            choices.append(Choice("\(ready) Preview \"\(last.name)\"  (dry run)", .preview(last.id)))
         }
+        var rest: [Choice<Action>] = []
         if tasks.count > 1 {
-            choices.append(Choice("Other tasks…", .otherTasks))
+            rest.append(Choice("Other tasks…", .otherTasks))
         }
-        choices.append(Choice("New sync task", .newTask))
-        if !tasks.isEmpty {
-            choices.append(Choice("Edit / delete task", .manage))
+        if tasks.isEmpty {
+            rest.append(Choice("New sync task", .newTask))
         }
-        choices.append(Choice("Status & history", .status))
-        if !tasks.isEmpty {
-            choices.append(Choice("Rebuild index", .rebuild))
-        }
-        choices += [Choice("Help", .help), Choice("Settings", .settings), Choice("Quit", .quit)]
+        rest += [Choice("More…", .more), Choice("Quit", .quit)]
+        let indent = last == nil ? "" : "  "
+        choices += rest.map { Choice(indent + $0.description, $0.action) }
 
         switch app.noora.menu("What do you want to do?", choices) {
         case .run(let id): return .screen(SyncScreen(taskID: id, mode: .run))
         case .preview(let id): return .screen(SyncScreen(taskID: id, mode: .preview))
         case .otherTasks: return .screen(TaskPickerScreen())
         case .newTask: return .screen(NewTaskScreen())
-        case .manage: return .screen(ManageTasksScreen())
-        case .status: return .screen(StatusScreen())
-        case .rebuild: return .screen(RebuildScreen())
-        case .help: return .screen(HelpScreen())
-        case .settings: return .screen(SettingsScreen())
+        case .more: return .screen(MoreScreen())
         case .quit: return .quit
         }
     }
@@ -68,6 +63,36 @@ struct MainMenuScreen: Screen {
     }
 }
 
+/// Everything besides running: tasks, status, index, help and settings.
+struct MoreScreen: Screen {
+    enum Action: Equatable {
+        case newTask, manage, status, rebuild, help, settings, back
+    }
+
+    func run(_ app: AppContext) async -> Next {
+        let hasTasks = !app.loadTasks().isEmpty
+        var choices = [Choice("New sync task", Action.newTask)]
+        if hasTasks {
+            choices.append(Choice("Edit / delete task", .manage))
+        }
+        choices.append(Choice("Status & history", .status))
+        if hasTasks {
+            choices.append(Choice("Rebuild index", .rebuild))
+        }
+        choices += [Choice("Help", .help), Choice("Settings", .settings), Choice("Back", .back)]
+
+        switch app.noora.menu("More", choices) {
+        case .newTask: return .screen(NewTaskScreen())
+        case .manage: return .screen(ManageTasksScreen())
+        case .status: return .screen(StatusScreen())
+        case .rebuild: return .screen(RebuildScreen())
+        case .help: return .screen(HelpScreen())
+        case .settings: return .screen(SettingsScreen())
+        case .back: return .mainMenu
+        }
+    }
+}
+
 /// All tasks; choosing one offers Run or Preview. Whichever runs becomes the last used task.
 struct TaskPickerScreen: Screen {
     enum Action: Equatable {
@@ -81,17 +106,17 @@ struct TaskPickerScreen: Screen {
             "Which task?",
             tasks.map { task in
                 let ready = MainMenuScreen.readiness(task, devices: devices, app: app)
-                return Choice("\(task.name) \(ready)  \(MainMenuScreen.lastRunText(task))", Optional(task.id))
-            } + [Choice("Back", nil)],
+                return Choice("\(ready) \(task.name)  \(MainMenuScreen.lastRunText(task))", Optional(task.id))
+            } + [Choice("  Back", nil)],
             filterable: tasks.count > 10
         )
         guard let id = picked, let task = tasks.first(where: { $0.id == id }) else { return .mainMenu }
         let ready = MainMenuScreen.readiness(task, devices: devices, app: app)
 
         let choices = [
-            Choice("Run \"\(task.name)\" \(ready)", Action.run),
-            Choice("Preview \"\(task.name)\" \(ready)  (dry run)", .preview),
-            Choice("Back", .back),
+            Choice("\(ready) Run \"\(task.name)\"", Action.run),
+            Choice("\(ready) Preview \"\(task.name)\"  (dry run)", .preview),
+            Choice("  Back", .back),
         ]
         switch app.noora.menu("What do you want to do with \"\(task.name)\"?", choices) {
         case .run: return .screen(SyncScreen(taskID: task.id, mode: .run))

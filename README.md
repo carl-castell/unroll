@@ -74,21 +74,16 @@ Running `unroll` in a terminal opens a menu you navigate with the arrow keys. Yo
  unroll
  Connected: My iPhone (iPhone)
  What do you want to do?
- ❯ Run "iPhone → SSD" ●  (last run 3 days ago)
-   Preview "iPhone → SSD" ●  (dry run)
-   Other tasks…
-   New sync task
-   Edit / delete task
-   Status & history
-   Rebuild index
-   Help
-   Settings
-   Quit
+ ❯ ● Run "iPhone → SSD"  (last run 3 days ago)
+   ● Preview "iPhone → SSD"  (dry run)
+     Other tasks…
+     More…
+     Quit
 ```
 
 A green ● means the task is ready to run: its iPhone and its destination are both connected. A grey ○ means one of them is missing.
 
-**Other tasks…** lists all your tasks, each with its dot; pick one to run or preview it.
+**Other tasks…** lists all your tasks, each with its dot; pick one to run or preview it. **More…** holds everything else: new sync task, edit / delete task, status & history, rebuild index, help and settings.
 
 During a sync you see each step with a status indicator (checking the destination folder and its drive, connecting to the iPhone, reading the item list, comparing), followed by a progress bar for the transfer and a summary at the end.
 
