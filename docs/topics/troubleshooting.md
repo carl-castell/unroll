@@ -10,6 +10,14 @@
 
 Their originals are only in iCloud, because **Optimize iPhone Storage** is on. Turn it off and give the iPhone time to download the originals, then run the task again. These items count as failed (exit code 1) so scripts notice.
 
+## Hidden and deleted photos
+
+unroll copies what the iPhone shares over the cable, the same as Image Capture. The iPhone doesn't mark hidden photos there, so as far as we know they're copied like any other photo. Recently Deleted isn't shared, so those aren't copied. To check on your iPhone, hide a test photo and look for it in `unroll run "<task>" --dry-run --list`.
+
+## Changing the folder structure
+
+A new structure applies to files copied from then on. Files copied earlier stay where they are until you arrange them: unroll offers that right after the change, and it's always under More for "…" → Arrange existing files. See `unroll help arrange`.
+
 ## Photos arrive as JPEG instead of HEIC
 
 Set Settings → Photos → Transfer to Mac or PC → **Keep Originals** on the iPhone.
