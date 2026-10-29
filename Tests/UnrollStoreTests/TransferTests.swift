@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 import UnrollCore
@@ -290,6 +291,55 @@ struct TransferTests {
         #expect(keys.contains(ItemKey(captureDate: scanned.files[1].key.captureDate, size: 150, filename: "IMG_2.HEIC")))
     }
 
+    /// Changing the structure and arranging moves the files, keeps the index right and removes
+    /// the emptied folders. A file someone else put at a target name is never replaced.
+    @Test func arrangesIndexedFilesIntoANewStructure() async throws {
+        session.items = [
+            item("1", "IMG_1.HEIC", date: june, asset: "A"),
+            item("2", "IMG_1.MOV", date: june, kind: .video, role: .livePhotoVideo, asset: "A", parent: "1"),
+            item("3", "IMG_2.HEIC", date: june + 60),
+        ]
+        try await run()
+        try Data("someone else's".utf8).write(to: root.appending(path: "IMG_2.HEIC"))
+
+        let arranger = DestinationArranger(cameras: nil)
+        let plan = await arranger.plan(root: root, template: .none, rule: nil) { _, _ in }
+        #expect(plan.moves.count == 3)
+        let destination = ResolvedDestination(root: root, volumeName: "Test", kind: .external, format: "APFS", isReadOnly: false)
+        let result = try await arranger.apply(plan, destination: destination, indexing: { _, _ in }, progress: { _, _ in })
+
+        #expect(result.moved == 3)
+        #expect(result.failed.isEmpty)
+        #expect(try files() == ["IMG_1.HEIC", "IMG_1.MOV", "IMG_2 (1).HEIC", "IMG_2.HEIC"])
+        #expect(try String(contentsOf: root.appending(path: "IMG_2.HEIC"), encoding: .utf8) == "someone else's")
+        #expect(result.removedFolders == 2)
+        #expect(!FileManager.default.fileExists(atPath: root.appending(path: "2026").path))
+        let journal = try String(contentsOf: try #require(result.journal), encoding: .utf8)
+        #expect(journal.contains("2026/2026-06/IMG_2.HEIC\tIMG_2 (1).HEIC"))
+        // The index follows: content lookups find the new paths, and nothing is new.
+        #expect(try index().path(forHash: FakeDeviceSession.bytes(for: session.items[2]).sha256) == "IMG_2 (1).HEIC")
+        let next = try await engine.makePlan(for: sampleTask(folders: .none), unlockTimeout: .zero, events: { _ in })
+        #expect(next.items.isEmpty)
+        await engine.close(next)
+        // Arranging again moves nothing.
+        #expect(await arranger.plan(root: root, template: .none, rule: nil) { _, _ in }.moves.isEmpty)
+    }
+
+    /// Without an index, arranging builds one first, so the moved files are still known.
+    @Test func arrangingAFolderWithoutIndexIndexesItFirst() async throws {
+        session.items = [item("1", "IMG_1.HEIC", date: june)]
+        try await run()
+        for suffix in ["", "-wal", "-shm"] {
+            try? FileManager.default.removeItem(atPath: SQLiteIndex.url(forDestinationRoot: root).path + suffix)
+        }
+        let arranger = DestinationArranger(cameras: nil)
+        let plan = await arranger.plan(root: root, template: try FolderTemplate("YYYY"), rule: nil) { _, _ in }
+        let destination = ResolvedDestination(root: root, volumeName: "Test", kind: .external, format: "APFS", isReadOnly: false)
+        _ = try await arranger.apply(plan, destination: destination, indexing: { _, _ in }, progress: { _, _ in })
+        #expect(try files() == ["2026/IMG_1.HEIC"])
+        #expect(try index().path(forHash: FakeDeviceSession.bytes(for: session.items[0]).sha256) == "2026/IMG_1.HEIC")
+    }
+
     /// A Photos library kept in the destination is a package; its contents aren't indexed.
     @Test func rebuildSkipsPackagesLikePhotosLibraries() throws {
         let library = root.appending(path: "Test.photoslibrary/originals/0", directoryHint: .isDirectory)
@@ -444,4 +494,8 @@ struct RecoveryTests {
         #expect(throws: SyncError.destinationBusy) { try DestinationStore(destination: destination) }
         _ = first
     }
+}
+
+extension Data {
+    var sha256: Data { Data(SHA256.hash(data: self)) }
 }

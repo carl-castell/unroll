@@ -238,6 +238,26 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
         }
     }
 
+    /// Paths of files added to Apple Photos as referenced files.
+    func pathsAddedToPhotos() throws -> Set<String> {
+        try locked {
+            var paths = Set<String>()
+            try database.query(
+                "SELECT relative_path FROM items WHERE photos_imported = ?", [.int(Int64(PhotosImportState.done.rawValue))]
+            ) { row in
+                if let path = row.text(0) { paths.insert(path) }
+            }
+            return paths
+        }
+    }
+
+    /// Records that a file was moved within the destination. Files not in the index are ignored.
+    func moveItem(from: String, to: String) throws {
+        try locked {
+            try database.run("UPDATE items SET relative_path = ? WHERE relative_path = ?", [.text(to), .text(from)])
+        }
+    }
+
     /// The most recent runs into this destination, newest first.
     public func runs(limit: Int = 10) throws -> [RunRecord] {
         try locked {
