@@ -25,10 +25,10 @@ struct TransferTests {
     }
 
     @discardableResult
-    func run(limit: Int? = nil) async throws -> SyncSummary {
-        var plan = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
+    func run(limit: Int? = nil, versions: VersionPolicy = .original, photos: FakePhotos? = nil) async throws -> SyncSummary {
+        var plan = try await engine.makePlan(for: sampleTask(versions: versions), unlockTimeout: .zero, events: { _ in })
         if let limit { plan = plan.limited(to: limit) }
-        let summary = try await engine.execute(plan, confirmed: true, events: { _ in })
+        let summary = try await engine.execute(plan, confirmed: true, photos: photos, events: { _ in })
         await engine.close(plan)
         return summary
     }
@@ -185,6 +185,48 @@ struct TransferTests {
         #expect(IndexRebuilder.withoutCollisionSuffix("IMG_1234 (12).MOV") == "IMG_1234.MOV")
         #expect(IndexRebuilder.withoutCollisionSuffix("Holiday (2025).JPG") == "Holiday.JPG")
         #expect(IndexRebuilder.withoutCollisionSuffix("IMG_1234.HEIC") == "IMG_1234.HEIC")
+    }
+
+    @Test func addsNewFilesToPhotosWithoutEditData() async throws {
+        session.items = [
+            item("1", "IMG_1.HEIC", date: june, asset: "A"),
+            item("2", "IMG_1.MOV", date: june, kind: .video, role: .livePhotoVideo, asset: "A", parent: "1"),
+            item("3", "IMG_1.AAE", date: june, kind: .other, role: .sidecar, asset: "A", parent: "1"),
+            item("4", "IMG_2.HEIC", date: june + 60),
+        ]
+        let photos = FakePhotos()
+        let summary = try await run(versions: .both, photos: photos)
+
+        #expect(summary.imported == 4)
+        #expect(summary.photos?.added == 3)
+        #expect(photos.batches == [["IMG_1.HEIC", "IMG_1.MOV", "IMG_2.HEIC"]])
+        #expect(try index().pendingPhotosImports().isEmpty)
+    }
+
+    /// A denied Automation permission leaves the files pending; the next run adds them.
+    @Test func deniedPhotosAccessIsRetriedNextRun() async throws {
+        session.items = [item("1", "IMG_1.HEIC", date: june)]
+        let photos = FakePhotos()
+        photos.error = .notAuthorized
+        let first = try await run(photos: photos)
+        #expect(first.imported == 1)
+        #expect(first.photos?.error == .notAuthorized)
+        #expect(first.photos?.pending == 1)
+        #expect(try index().pendingPhotosImports() == ["2026/2026-06/IMG_1.HEIC"])
+
+        photos.error = nil
+        session.items.append(item("2", "IMG_2.HEIC", date: june + 60))
+        let second = try await run(photos: photos)
+        #expect(second.photos?.added == 2)
+        #expect(Set(photos.batches.flatMap { $0 }) == ["IMG_1.HEIC", "IMG_2.HEIC"])
+        #expect(try index().pendingPhotosImports().isEmpty)
+    }
+
+    @Test func withoutPhotosOptionNothingIsSent() async throws {
+        session.items = [item("1", "IMG_1.HEIC", date: june)]
+        let summary = try await run()
+        #expect(summary.photos == nil)
+        #expect(try index().pendingPhotosImports().isEmpty)
     }
 
     @Test func limitKeepsLivePhotoPairsTogether() async throws {

@@ -106,6 +106,14 @@ public final class DestinationStore: DestinationWriter, @unchecked Sendable {
         try? index.deletePending(tempName: tempName)
     }
 
+    public func pendingPhotosImports() throws -> [String] {
+        try index.pendingPhotosImports()
+    }
+
+    public func markPhotosImport(_ relativePaths: [String], state: PhotosImportState) throws {
+        try index.markPhotosImport(relativePaths, state: state)
+    }
+
     public func startRun(taskID: UUID, deviceID: DeviceID) throws -> Int64 {
         try index.startRun(taskID: taskID, deviceID: deviceID)
     }

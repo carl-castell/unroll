@@ -212,6 +212,32 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
         }
     }
 
+    func pendingPhotosImports() throws -> [String] {
+        try locked {
+            var paths: [String] = []
+            try database.query(
+                "SELECT relative_path FROM items WHERE photos_imported = ? AND role != 'sidecar' ORDER BY id",
+                [.int(Int64(PhotosImportState.pending.rawValue))]
+            ) { row in
+                if let path = row.text(0) { paths.append(path) }
+            }
+            return paths
+        }
+    }
+
+    func markPhotosImport(_ paths: [String], state: PhotosImportState) throws {
+        try locked {
+            try database.transaction {
+                for path in paths {
+                    try database.run(
+                        "UPDATE items SET photos_imported = ? WHERE relative_path = ?",
+                        [.int(Int64(state.rawValue)), .text(path)]
+                    )
+                }
+            }
+        }
+    }
+
     /// The most recent runs into this destination, newest first.
     public func runs(limit: Int = 10) throws -> [RunRecord] {
         try locked {
