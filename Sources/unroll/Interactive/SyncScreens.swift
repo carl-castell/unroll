@@ -2,6 +2,7 @@ import Foundation
 import Noora
 import UnrollCore
 import UnrollStore
+import UnrollSystem
 
 /// Runs a task, or previews it: checks, listing and comparison, each as a progress step.
 struct SyncScreen: Screen {
@@ -173,8 +174,9 @@ enum TransferFlow {
                 errorMessage: "Copying failed",
                 showSpinner: true
             ) { @Sendable update in
+                let photos: (any PhotosImporting)? = task.addToPhotos ? AppleScriptPhotosImporter() : nil
                 let work = Task {
-                    try await engine.execute(plan, confirmed: true) { event in
+                    try await engine.execute(plan, confirmed: true, photos: photos) { event in
                         log?.record(event)
                         if let line = tracker.handle(event) { update(line) }
                     }
@@ -196,6 +198,7 @@ enum TransferFlow {
         }
         await engine.close(plan)
         record(task: task, summary: summary, app: app)
+        await PhotosText.notify(task, summary: summary)
         showSummary(summary, plan: plan, log: log?.url, app: app)
         return .mainMenu
     }
@@ -228,12 +231,16 @@ enum TransferFlow {
             details.append("\(failure.filename): \(PlainRenderer.describe(failure.reason))")
         }
         if summary.failed.count > 5 { details.append("… and \(summary.failed.count - 5) more failures") }
+        if let photos = summary.photos {
+            details.append("\(PhotosText.summary(photos) ?? "Nothing new for Apple Photos.")")
+            if photos.added > 0 { details.append("\(PhotosText.copyItemsReminder)") }
+        }
         if let log { details.append("Log: \(Format.path(log))") }
 
         let headline = "Imported \(summary.imported) files (\(Format.bytes(summary.bytes)))"
         if let stopped = summary.stoppedBecause {
             app.noora.error(.alert("Stopped: \(stopped.message)", takeaways: ["\(headline)"] + details))
-        } else if !summary.failed.isEmpty {
+        } else if !summary.failed.isEmpty || summary.photos?.error != nil {
             app.noora.error(.alert("\(headline), \(summary.failed.count) failed", takeaways: details))
         } else if summary.cancelled {
             app.noora.warning(.alert(
@@ -279,6 +286,10 @@ final class TransferTracker: @unchecked Sendable {
                 doneFiles += 1
                 doneBytes += entry.item.size
                 currentBytes = 0
+            case .photosImportStarted(let files):
+                return "Adding \(files) files to Apple Photos…"
+            case .photosImportProgress(let done, let total):
+                return "Adding to Apple Photos… \(done) of \(total)"
             default:
                 return nil
             }

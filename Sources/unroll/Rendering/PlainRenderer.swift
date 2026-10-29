@@ -10,8 +10,16 @@ struct PlainRenderer: RunRenderer {
 
     func handle(_ event: SyncEvent) {
         switch event {
-        case .checkStarted, .listingProgress, .fileStarted, .fileProgress:
+        case .checkStarted, .listingProgress, .fileStarted, .fileProgress, .photosImportProgress:
             break
+        case .photosImportStarted(let files):
+            print("\nAdding \(files) files to Apple Photos…")
+        case .photosImportFinished(let result):
+            if let error = result.error {
+                printError(PhotosText.describe(error))
+            } else {
+                print("  \(result.added) added. \(PhotosText.copyItemsReminder)")
+            }
         case .checkPassed(.destination, let detail):
             print("✓ Destination: \(destinationLabel ?? detail)")
         case .checkPassed(let check, let detail):
@@ -96,6 +104,7 @@ struct PlainRenderer: RunRenderer {
         if !summary.failed.isEmpty { print("  \(summary.failed.count) failed") }
         if summary.notAttempted > 0 { print("  \(summary.notAttempted) not attempted") }
         if summary.unavailable > 0 { print("  \(summary.unavailable) not available on the device") }
+        if let photos = PhotosText.summary(summary.photos) { print("  \(photos)") }
     }
 
     static func describe(_ failure: ItemFailure) -> String {

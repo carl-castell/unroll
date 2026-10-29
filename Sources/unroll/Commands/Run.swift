@@ -3,6 +3,7 @@ import Foundation
 import UnrollCore
 import UnrollDevice
 import UnrollStore
+import UnrollSystem
 
 struct Run: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -126,7 +127,8 @@ struct Run: AsyncParsableCommand {
             }
         }
 
-        let work = Task { try await engine.execute(plan, confirmed: true, events: events) }
+        let photos: (any PhotosImporting)? = task.addToPhotos ? AppleScriptPhotosImporter() : nil
+        let work = Task { try await engine.execute(plan, confirmed: true, photos: photos, events: events) }
         // Ctrl-C finishes the current file, then stops; nothing incomplete is recorded.
         let interrupt = CtrlCHandler {
             work.cancel()
@@ -145,6 +147,7 @@ struct Run: AsyncParsableCommand {
         }
         await engine.close(plan)
         saveRun(of: task, indexID: summary.indexID)
+        await PhotosText.notify(task, summary: summary)
 
         if let stopped = summary.stoppedBecause {
             renderer.failure(stopped.message + " The run was stopped; start it again to continue.", code: stopped.exitCode)
@@ -154,7 +157,8 @@ struct Run: AsyncParsableCommand {
             renderer.note("Stopped at your request. Run the task again to continue.")
             return UnrollExit.cancelled
         }
-        return summary.failed.isEmpty && summary.unavailable == 0 ? UnrollExit.success : UnrollExit.itemsFailed
+        let photosFailed = summary.photos?.error != nil
+        return summary.failed.isEmpty && summary.unavailable == 0 && !photosFailed ? UnrollExit.success : UnrollExit.itemsFailed
     }
 
     /// Records the run and what it was confirmed for, so later runs don't ask again.

@@ -66,6 +66,13 @@ final class RunLog: @unchecked Sendable {
             "duplicate \(entry.item.filename) = \(existing)"
         case .fileFailed(let entry, let failure):
             "FAILED \(entry.item.filename): \(PlainRenderer.describe(failure))"
+        case .photosImportStarted(let files):
+            "adding \(files) files to Apple Photos"
+        case .photosImportProgress:
+            nil
+        case .photosImportFinished(let result):
+            result.error.map { "Photos: \(result.added) added, \(result.pending) pending: \(PhotosText.describe($0))" }
+                ?? "Photos: \(result.added) added"
         case .finished(let summary):
             "finished: \(summary.imported) imported, \(summary.duplicates) duplicates, \(summary.failed.count) failed, "
                 + "\(summary.unavailable) unavailable, \(summary.notAttempted) not attempted"

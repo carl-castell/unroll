@@ -348,14 +348,14 @@ enum Wizard {
     static func askAddToPhotos(_ app: AppContext, current: Bool) -> Bool {
         app.noora.yesOrNoChoicePrompt(
             question: "Add new files to Apple Photos as referenced files?", defaultAnswer: current,
-            description: "Photos shows them without copying them into its library. Not available yet in this development version."
+            description: "After each sync, new files are added to Photos without copying them into its library. Turn off \"Copy items to the Photos library\" in Photos → Settings → General first. macOS asks once whether your terminal app may control Photos."
         )
     }
 
     static func askNotify(_ app: AppContext, current: Bool) -> Bool {
         app.noora.yesOrNoChoicePrompt(
             question: "Show a notification when a sync finishes?", defaultAnswer: current,
-            description: "Not available yet in this development version."
+            description: "macOS may ask to allow notifications from Script Editor, which shows them for unroll."
         )
     }
 

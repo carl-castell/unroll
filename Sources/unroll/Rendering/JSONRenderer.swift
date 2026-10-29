@@ -26,8 +26,17 @@ struct JSONRenderer: RunRenderer {
 
     func handle(_ event: SyncEvent) {
         switch event {
-        case .checkStarted, .listingProgress, .fileProgress:
+        case .checkStarted, .listingProgress, .fileProgress, .photosImportProgress:
             break
+        case .photosImportStarted(let files):
+            emit("photosStarted", ["files": files])
+        case .photosImportFinished(let result):
+            var fields: [String: Any] = ["added": result.added, "pending": result.pending]
+            if let error = result.error {
+                fields["error"] = error == .notAuthorized ? "notAuthorized" : "failed"
+                fields["message"] = PhotosText.describe(error)
+            }
+            emit("photosFinished", fields)
         case .checkPassed(let check, let detail):
             emit("check", ["check": check.rawValue, "status": "passed", "detail": detail])
         case .checkFailed(let check, let error):
@@ -60,6 +69,7 @@ struct JSONRenderer: RunRenderer {
                 "seconds": NSDecimalNumber(string: String(format: "%.1f", Format.seconds(summary.duration))), "cancelled": summary.cancelled,
             ]
             if let stopped = summary.stoppedBecause { fields["stopped"] = stopped.message }
+            if let photos = summary.photos { fields["addedToPhotos"] = photos.added }
             emit("finished", fields)
         }
     }

@@ -166,7 +166,9 @@ For complete, unconverted originals:
 
 1. In Photos, go to **Settings → General** and **uncheck "Copy items to the Photos library"**.
 2. Enable **"Add to Apple Photos"** in your sync task.
-3. After each sync, `unroll` imports the new files into Photos as referenced files.
+3. After each sync, `unroll` imports the new files into Photos as referenced files. Live Photos are imported together, so Photos keeps them paired.
+
+The first time, macOS asks whether your terminal app may control Photos. If that's denied, the files stay on the SSD and are added on the next run once it's allowed (System Settings → Privacy & Security → Automation). `unroll` can't read the Photos setting from step 1, so it reminds you of it after each import instead.
 
 Things to know about referenced files in Apple Photos:
 
