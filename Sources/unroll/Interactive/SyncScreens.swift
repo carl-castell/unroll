@@ -108,7 +108,7 @@ struct PreviewScreen: Screen {
         guard summary.newCount > 0 else {
             await app.engine.close(plan)
             app.noora.success("\"\(task.name)\" is up to date. Nothing new to copy.")
-            return .mainMenu
+            return .quit
         }
 
         print("")
@@ -144,6 +144,7 @@ struct PreviewScreen: Screen {
 }
 
 /// Confirmation (when the rules require it), the transfer with a progress line, and the summary.
+/// After a clean run unroll quits; after problems it returns to the menu.
 @MainActor
 enum TransferFlow {
     static func run(task: SyncTask, plan: SyncPlan, app: AppContext) async -> Next {
@@ -151,7 +152,7 @@ enum TransferFlow {
         guard !plan.items.isEmpty else {
             await engine.close(plan)
             app.noora.success("\"\(task.name)\" is up to date. Nothing new to copy.")
-            return .mainMenu
+            return .quit
         }
         let totalBytes = plan.items.reduce(Int64(0)) { $0 + $1.item.size }
 
@@ -214,8 +215,8 @@ enum TransferFlow {
         await engine.close(plan)
         record(task: task, summary: summary, app: app)
         await PhotosText.notify(task, summary: summary)
-        showSummary(summary, task: task, plan: plan, log: log?.url, app: app)
-        return .mainMenu
+        let clean = showSummary(summary, task: task, plan: plan, log: log?.url, app: app)
+        return clean ? .quit : .mainMenu
     }
 
     private static func confirmationTitle(_ reason: ConfirmationReason, task: SyncTask) -> String {
@@ -237,7 +238,8 @@ enum TransferFlow {
         try? app.save(current)
     }
 
-    private static func showSummary(_ summary: SyncSummary, task: SyncTask, plan: SyncPlan, log: URL?, app: AppContext) {
+    /// Shows the result. Returns true when everything went fine.
+    private static func showSummary(_ summary: SyncSummary, task: SyncTask, plan: SyncPlan, log: URL?, app: AppContext) -> Bool {
         let took = TransferTracker.duration(Format.seconds(summary.duration))
         var details: [TerminalText] = [
             "Imported \(summary.imported) files (\(Format.bytes(summary.bytes))) in \(took)",
@@ -269,7 +271,9 @@ enum TransferFlow {
             ))
         } else {
             app.noora.success(.alert("Sync complete. \"\(task.name)\" is up to date.", takeaways: details))
+            return true
         }
+        return false
     }
 }
 

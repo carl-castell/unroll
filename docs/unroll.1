@@ -83,6 +83,8 @@ An item counts as already imported when its capture time, size and file name mat
 If the destination folder already has photos but no unroll index, for example copied earlier with Image Capture, unroll recognizes them the same way, by name, size and capture time, and doesn't copy them again. The first run records them in its index before copying.
 .SS The first run
 .PP
+After a run from the menu that finished without problems, or found nothing new, unroll quits. If something failed or you stopped the run, it returns to the menu.
+.PP
 The first run of a task shows what will be copied and asks once. Later runs start right away. It asks again only if the task's device or destination changed, or if the destination's index is empty or was rebuilt. Without a terminal, such a run stops with exit code 5; pass \fB\-\-yes\fR to confirm it.
 .SS Where things are stored
 .IP \(bu 2

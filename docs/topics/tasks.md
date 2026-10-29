@@ -19,6 +19,8 @@ If the destination folder already has photos but no unroll index, for example co
 
 ## The first run
 
+After a run from the menu that finished without problems, or found nothing new, unroll quits. If something failed or you stopped the run, it returns to the menu.
+
 The first run of a task shows what will be copied and asks once. Later runs start right away. It asks again only if the task's device or destination changed, or if the destination's index is empty or was rebuilt. Without a terminal, such a run stops with exit code 5; pass `--yes` to confirm it.
 
 ## Where things are stored
