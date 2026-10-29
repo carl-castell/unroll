@@ -19,6 +19,9 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
     public var destination: Destination
     public var folderTemplate: FolderTemplate
     public var versions: VersionPolicy
+    /// When set, only files from these camera models (e.g. "iPhone 15 Pro") go into the folder
+    /// structure; screenshots, saved images and photos from other cameras go into `Other`.
+    public var cameraModels: [String]?
     public var addToPhotos: Bool
     /// Let Photos check for items it already has. It then asks what to do with duplicates,
     /// which waits for an answer even in unattended runs.
@@ -35,6 +38,7 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
         destination: Destination,
         folderTemplate: FolderTemplate = .default,
         versions: VersionPolicy = .original,
+        cameraModels: [String]? = nil,
         addToPhotos: Bool = false,
         photosChecksDuplicates: Bool = true,
         notify: Bool = false,
@@ -47,6 +51,7 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
         self.destination = destination
         self.folderTemplate = folderTemplate
         self.versions = versions
+        self.cameraModels = cameraModels
         self.addToPhotos = addToPhotos
         self.photosChecksDuplicates = photosChecksDuplicates
         self.notify = notify
@@ -55,8 +60,8 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, device, destination, folderTemplate, versions, addToPhotos, photosChecksDuplicates, notify
-        case lastRun, confirmation
+        case id, name, device, destination, folderTemplate, versions, cameraModels, addToPhotos, photosChecksDuplicates
+        case notify, lastRun, confirmation
     }
 
     /// Options added in later versions fall back to their defaults, so older task files still load.
@@ -68,6 +73,7 @@ public struct SyncTask: Codable, Sendable, Equatable, Identifiable {
         destination = try container.decode(Destination.self, forKey: .destination)
         folderTemplate = try container.decodeIfPresent(FolderTemplate.self, forKey: .folderTemplate) ?? .default
         versions = try container.decodeIfPresent(VersionPolicy.self, forKey: .versions) ?? .original
+        cameraModels = try container.decodeIfPresent([String].self, forKey: .cameraModels)
         addToPhotos = try container.decodeIfPresent(Bool.self, forKey: .addToPhotos) ?? false
         photosChecksDuplicates = try container.decodeIfPresent(Bool.self, forKey: .photosChecksDuplicates) ?? true
         notify = try container.decodeIfPresent(Bool.self, forKey: .notify) ?? false

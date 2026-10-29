@@ -174,14 +174,30 @@ public final class EventRecorder: @unchecked Sendable {
 
 public let phone = DeviceInfo(id: DeviceID("phone-1"), name: "Test iPhone", productKind: "iPhone", access: .available)
 
-public func sampleTask(versions: VersionPolicy = .original, folders: FolderTemplate = .default) -> SyncTask {
+public func sampleTask(
+    versions: VersionPolicy = .original, folders: FolderTemplate = .default, cameraModels: [String]? = nil
+) -> SyncTask {
     SyncTask(
         name: "iPhone → SSD",
         device: .init(id: phone.id, name: phone.name),
         destination: Destination(kind: .local, volumeUUID: "VOL-1", remountURL: nil, volumeName: "Photos-SSD", path: "Photos"),
         folderTemplate: folders,
-        versions: versions
+        versions: versions,
+        cameraModels: cameraModels
     )
+}
+
+/// Camera models by device file name. Downloads are saved as "<uuid>-<file name>".
+public struct FakeCameraModels: CameraModelReading {
+    public let models: [String: String]
+
+    public init(_ models: [String: String]) {
+        self.models = models
+    }
+
+    public func cameraModel(of file: URL) async -> String? {
+        models.first { file.lastPathComponent.hasSuffix("-\($0.key)") }?.value
+    }
 }
 
 public let ssd = ResolvedDestination(

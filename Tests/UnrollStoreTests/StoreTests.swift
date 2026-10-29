@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import Testing
 import UnrollCore
 @testable import UnrollStore
@@ -134,5 +135,35 @@ struct VolumeResolverTests {
         #expect(destination.volumeUUID != nil)
         let resolved = try #require(resolver.resolve(destination))
         #expect(resolved.root.resolvingSymlinksInPath().path.hasSuffix(folder.resolvingSymlinksInPath().path))
+    }
+}
+
+struct CameraModelReaderTests {
+    /// A 1×1 JPEG, optionally with a camera model in its TIFF metadata.
+    func jpeg(model: String?) throws -> URL {
+        let url = try temporaryDirectory().appending(path: "photo.jpg")
+        let context = try #require(CGContext(
+            data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        let image = try #require(context.makeImage())
+        let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, "public.jpeg" as CFString, 1, nil))
+        let properties: [CFString: Any] = model.map { [kCGImagePropertyTIFFDictionary: [kCGImagePropertyTIFFModel: $0]] } ?? [:]
+        CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+        #expect(CGImageDestinationFinalize(destination))
+        return url
+    }
+
+    @Test func readsModelOfPhotos() async throws {
+        #expect(await CameraModelReader().cameraModel(of: try jpeg(model: "iPhone 15 Pro")) == "iPhone 15 Pro")
+        #expect(await CameraModelReader().cameraModel(of: try jpeg(model: nil)) == nil)
+    }
+
+    @Test func ownCameraMatchIgnoresCaseAndSpaces() {
+        let rule = OtherFolderRule(cameraModels: ["iPhone 15 Pro"], template: .default)
+        #expect(rule.isOwnCamera(" iphone 15 pro"))
+        #expect(!rule.isOwnCamera("iPhone 15"))
+        #expect(!rule.isOwnCamera(nil))
+        #expect(rule.otherFolder(for: LocalTimestamp(secondsSince1970: 1_780_393_586)) == "Other/2026")
     }
 }

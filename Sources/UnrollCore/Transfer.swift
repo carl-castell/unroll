@@ -150,6 +150,17 @@ extension SyncEngine {
                 try writer.recordDuplicate(key: entry.key, of: existing, deviceID: plan.deviceID, tempFile: file, tempName: tempName)
                 return .success(.duplicate(of: existing))
             }
+            // Own camera or Other: decided once per group, from the photo itself, so a Live Photo's
+            // video and edit data stay next to it.
+            if let rule = plan.otherRule, let cameras, !namer.hasFolder(forGroupOf: entry) {
+                if item.role == .sidecar {
+                    // Edit data has no camera model; without its photo in this run it stays in the date folder.
+                    namer.setFolder(entry.folder, forGroupOf: entry)
+                } else {
+                    let model = await cameras.cameraModel(of: file)
+                    namer.setFolder(rule.folder(for: entry.key.captureDate, model: model), forGroupOf: entry)
+                }
+            }
             while true {
                 let path = namer.path(for: entry)
                 let indexed = IndexedItem(
@@ -178,6 +189,8 @@ struct GroupNamer {
     /// Members of each group, by the primary's device item ID.
     private let groups: [String: [PlannedItem]]
     private var suffixes: [String: Int] = [:]
+    /// Folders chosen per group, overriding the planned folder (see `OtherFolderRule`).
+    private var folders: [String: String] = [:]
 
     init(items: [PlannedItem], exists: @escaping (String) -> Bool) {
         self.exists = exists
@@ -187,18 +200,27 @@ struct GroupNamer {
         }
     }
 
+    func hasFolder(forGroupOf entry: PlannedItem) -> Bool {
+        folders[groupOwner(of: entry)] != nil
+    }
+
+    /// Puts the entry's whole group into `folder`. Call before the group's first `path(for:)`.
+    mutating func setFolder(_ folder: String, forGroupOf entry: PlannedItem) {
+        folders[groupOwner(of: entry)] = folder
+    }
+
     mutating func path(for entry: PlannedItem) -> String {
         let owner = groupOwner(of: entry)
         if let suffix = suffixes[owner] {
-            return Self.path(entry, suffix: suffix)
+            return path(entry, suffix: suffix)
         }
         let members = groups[owner] ?? [entry]
         var suffix = 0
-        while members.contains(where: { exists(Self.path($0, suffix: suffix)) }) {
+        while members.contains(where: { exists(path($0, suffix: suffix)) }) {
             suffix += 1
         }
         suffixes[owner] = suffix
-        return Self.path(entry, suffix: suffix)
+        return path(entry, suffix: suffix)
     }
 
     /// Called when `path` turned out to be taken after all; the group moves to the next suffix.
@@ -206,7 +228,7 @@ struct GroupNamer {
         let owner = groupOwner(of: entry)
         let next = (suffixes[owner] ?? 0) + 1
         var suffix = next
-        while exists(Self.path(entry, suffix: suffix)) {
+        while exists(self.path(entry, suffix: suffix)) {
             suffix += 1
         }
         suffixes[owner] = suffix
@@ -217,11 +239,20 @@ struct GroupNamer {
         return entry.item.deviceItemID
     }
 
-    static func path(_ entry: PlannedItem, suffix: Int) -> String {
+    private func path(_ entry: PlannedItem, suffix: Int) -> String {
+        Self.path(entry, folder: folders[groupOwner(of: entry)] ?? entry.folder, suffix: suffix)
+    }
+
+    static func path(_ entry: PlannedItem, folder: String, suffix: Int) -> String {
         let name = entry.item.filename
-        guard suffix > 0 else { return entry.path(for: name) }
-        let base = (name as NSString).deletingPathExtension
-        let ext = (name as NSString).pathExtension
-        return entry.path(for: "\(base) (\(suffix))\(ext.isEmpty ? "" : ".\(ext)")")
+        let file: String
+        if suffix > 0 {
+            let base = (name as NSString).deletingPathExtension
+            let ext = (name as NSString).pathExtension
+            file = "\(base) (\(suffix))\(ext.isEmpty ? "" : ".\(ext)")"
+        } else {
+            file = name
+        }
+        return folder.isEmpty ? file : "\(folder)/\(file)"
     }
 }

@@ -124,6 +124,44 @@ struct TransferTests {
         #expect(try files() == ["IMG_0398 (1).HEIC", "IMG_0398.HEIC", "IMG_2.MOV"])
     }
 
+    /// Own camera into the structure, everything else into Other/YYYY; a Live Photo's video
+    /// follows its photo even though the video is checked on its own.
+    @Test func separatesOwnCameraFromOther() async throws {
+        let cameras = FakeCameraModels([
+            "IMG_1.HEIC": "iPhone 15 Pro", "IMG_3.HEIC": "iPhone 12", "IMG_4.MOV": "iPhone 15 Pro ",
+        ])
+        session.items = [
+            item("1", "IMG_1.HEIC", date: june, asset: "A"),
+            item("2", "IMG_1.MOV", date: june, kind: .video, role: .livePhotoVideo, asset: "A", parent: "1"),
+            item("3", "IMG_2.PNG", date: june),
+            item("4", "IMG_3.HEIC", date: june),
+            item("5", "IMG_4.MOV", date: june, kind: .video),
+        ]
+        try await runSeparating(cameras: cameras, models: ["iPhone 15 Pro"], folders: .default)
+        #expect(try files() == [
+            "2026/2026-06/IMG_1.HEIC", "2026/2026-06/IMG_1.MOV", "2026/2026-06/IMG_4.MOV",
+            "Other/2026/IMG_2.PNG", "Other/2026/IMG_3.HEIC",
+        ])
+    }
+
+    @Test func otherIsFlatWithoutFolders() async throws {
+        session.items = [item("1", "IMG_1.HEIC", date: june), item("2", "IMG_2.PNG", date: june)]
+        try await runSeparating(cameras: FakeCameraModels(["IMG_1.HEIC": "iPhone 15 Pro"]), models: ["iPhone 15 Pro"], folders: .none)
+        #expect(try files() == ["IMG_1.HEIC", "Other/IMG_2.PNG"])
+    }
+
+    func runSeparating(cameras: FakeCameraModels, models: [String], folders: FolderTemplate) async throws {
+        let destination = ResolvedDestination(root: root, volumeName: "Test", kind: .external, format: "APFS", isReadOnly: false)
+        let engine = SyncEngine(
+            devices: FakeDeviceBrowser(devices: [phone], session: session), destinations: FakeDestinations(resolved: destination),
+            indexes: SQLiteIndexProvider(), writers: DestinationStoreOpener(), cameras: cameras
+        )
+        let task = sampleTask(folders: folders, cameraModels: models)
+        let plan = try await engine.makePlan(for: task, unlockTimeout: .zero, events: { _ in })
+        _ = try await engine.execute(plan, confirmed: true, events: { _ in })
+        await engine.close(plan)
+    }
+
     @Test func identicalContentIsRecordedAsAlias() async throws {
         let same = Data(repeating: 7, count: 1_000)
         session.items = [item("1", "IMG_1.HEIC", date: june), item("2", "IMG_9.HEIC", date: june + 60)]

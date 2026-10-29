@@ -53,20 +53,24 @@ public struct SyncEngine: Sendable {
     let indexes: any IndexProviding
     let writers: any DestinationOpening
     let existing: (any ExistingFilesScanning)?
+    let cameras: (any CameraModelReading)?
 
     /// - Parameter existing: recognizes files already in a destination that has no index yet.
+    /// - Parameter cameras: reads camera models, for tasks that put other images into `Other`.
     public init(
         devices: any DeviceBrowsing,
         destinations: any DestinationResolving,
         indexes: any IndexProviding,
         writers: any DestinationOpening,
-        existing: (any ExistingFilesScanning)? = nil
+        existing: (any ExistingFilesScanning)? = nil,
+        cameras: (any CameraModelReading)? = nil
     ) {
         self.devices = devices
         self.destinations = destinations
         self.indexes = indexes
         self.writers = writers
         self.existing = existing
+        self.cameras = cameras
     }
 
     /// Checks the destination, then the device, lists the device and compares against the index.
@@ -159,7 +163,8 @@ public struct SyncEngine: Sendable {
             unavailable: result.unavailable,
             summary: result.summary,
             confirmation: ConfirmationPolicy.reason(for: task, index: meta, newItems: result.items.count),
-            existingFiles: existingFiles.files
+            existingFiles: existingFiles.files,
+            otherRule: task.otherFolderRule
         )
     }
 

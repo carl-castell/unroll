@@ -51,6 +51,9 @@ public struct SyncPlan: Sendable {
     /// Files found in a destination without an index, as read while planning. Indexing them
     /// before copying reuses these, so the files are only hashed, not read again.
     var existingFiles: [ExistingFile] = []
+    /// Set when files not taken with the task's own cameras go into `Other`. Each item's `folder`
+    /// is then where it goes if it is from an own camera; the copy decides from the file itself.
+    public internal(set) var otherRule: OtherFolderRule?
 
     public var destinationRoot: URL { destination.root }
 
@@ -70,7 +73,7 @@ public struct SyncPlan: Sendable {
         return SyncPlan(
             taskID: taskID, deviceID: deviceID, destination: destination, session: session,
             items: kept, unavailable: unavailable, summary: summary, confirmation: confirmation,
-            existingFiles: existingFiles
+            existingFiles: existingFiles, otherRule: otherRule
         )
     }
 }
