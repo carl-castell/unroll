@@ -7,7 +7,8 @@ extension SyncEngine {
     /// Copies the plan's items: download into the destination's temp area, verify size and hash,
     /// move into place without overwriting, and only then record in the index.
     ///
-    /// Stops early if the device disconnects; the summary's `stoppedBecause` says why.
+    /// Stops early if the device disconnects (the summary's `stoppedBecause` says why) or the
+    /// calling task is cancelled (`cancelled`).
     /// - Parameter confirmed: whether the user confirmed the run. Required when `plan.confirmation` is set;
     ///   the core only signals this, and the interface decides how to ask.
     public func execute(
@@ -51,6 +52,12 @@ extension SyncEngine {
 
         var namer = GroupNamer(items: items, exists: writer.fileExists(atRelativePath:))
         for (index, entry) in items.enumerated() {
+            // Cancelling the task (e.g. Ctrl-C) stops between files; the current file always finishes.
+            if Task.isCancelled {
+                summary.notAttempted = items.count - index
+                summary.cancelled = true
+                break
+            }
             events(.fileStarted(entry, index: index))
             switch await transfer(entry, plan: plan, writer: writer, namer: &namer, events: events) {
             case .success(let outcome):
