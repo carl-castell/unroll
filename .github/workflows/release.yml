@@ -1,0 +1,60 @@
+name: Release
+
+# Push a tag like v0.1.0 to release. The tag must match unrollVersion in Sources/unroll/Unroll.swift.
+# No binaries are published: Homebrew builds unroll from the source tarball of the tag.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the tag matches the version in the code
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if ! grep -q "let unrollVersion = \"$VERSION\"" Sources/unroll/Unroll.swift; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match $(grep 'let unrollVersion' Sources/unroll/Unroll.swift)"
+            exit 1
+          fi
+
+      - name: Build and test
+        run: |
+          swift build --configuration release --product unroll
+          swift test
+          swift scripts/generate-docs.swift --check
+          test "$(.build/release/unroll --version)" = "$VERSION"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "unroll $VERSION" --generate-notes
+
+      - name: Checksum of the source tarball
+        run: |
+          URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz"
+          SHA256="$(curl --fail --silent --show-error --location "$URL" | shasum -a 256 | cut -d ' ' -f 1)"
+          echo "SHA256=$SHA256" >> "$GITHUB_ENV"
+          echo "$URL → $SHA256"
+
+      - name: Update the formula in carl-castell/homebrew-tap
+        env:
+          # A fine-grained token with "Contents: Read and write" on the tap repository only.
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/carl-castell/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          sed -e "s/@VERSION@/${VERSION}/g" -e "s/@SHA256@/${SHA256}/g" \
+            packaging/homebrew/unroll.rb.template > tap/Formula/unroll.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/unroll.rb
+          git commit -m "unroll ${VERSION}"
+          git push

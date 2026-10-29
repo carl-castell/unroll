@@ -30,7 +30,7 @@ Keeping a small library on your Mac that only *references* the files on your SSD
 ### Homebrew
 
 ```sh
-brew install <github-user>/tap/unroll
+brew install carl-castell/tap/unroll
 ```
 
 Homebrew builds `unroll` from source on your Mac, so there's no unsigned binary to unblock. Updates come through `brew upgrade`. The man page and shell completions (zsh, bash, fish) are installed automatically.
@@ -40,7 +40,7 @@ Homebrew builds `unroll` from source on your Mac, so there's no unsigned binary 
 Requires Xcode or the Xcode Command Line Tools.
 
 ```sh
-git clone https://github.com/<github-user>/unroll.git
+git clone https://github.com/carl-castell/unroll.git
 cd unroll
 swift build -c release
 cp .build/release/unroll /usr/local/bin/
@@ -254,7 +254,7 @@ unroll/
 ## Development
 
 ```sh
-git clone https://github.com/<github-user>/unroll.git
+git clone https://github.com/carl-castell/unroll.git
 cd unroll
 swift build
 swift test

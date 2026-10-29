@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Build and test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest supported macOS (and its older Swift) and the newest.
+        os: [macos-14, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Build
+        run: swift build
+      - name: Test
+        # Without a device or terminal; device tests are opt-in and never run here.
+        run: swift test
+      - name: Generated docs are up to date
+        run: swift scripts/generate-docs.swift --check
+      - name: Release build and smoke test
+        run: |
+          swift build --configuration release --product unroll
+          .build/release/unroll --version
+          .build/release/unroll --help > /dev/null
+          .build/release/unroll help exit-codes > /dev/null
