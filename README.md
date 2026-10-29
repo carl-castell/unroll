@@ -290,6 +290,8 @@ It depends only on permissively licensed components, all compatible with MIT and
 |---|---|---|
 | [Noora](https://github.com/tuist/Noora) | Interactive menus, progress, alerts | MIT |
 | [swift-argument-parser](https://github.com/apple/swift-argument-parser) | Commands, `--help`, shell completions | Apache 2.0 |
+| [Rainbow](https://github.com/onevcat/Rainbow), [Path](https://github.com/tuist/path) | Used by Noora | MIT |
+| [swift-log](https://github.com/apple/swift-log) | Used by Noora | Apache 2.0 |
 | SQLite (system library) | Import index | Public domain |
 | ImageCaptureCore (macOS framework) | iPhone access | Part of macOS, linked, not redistributed |
 

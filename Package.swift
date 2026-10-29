@@ -8,7 +8,8 @@ let package = Package(
         .executable(name: "unroll", targets: ["unroll"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
+        .package(url: "https://github.com/tuist/Noora.git", exact: "0.57.6"),
     ],
     targets: [
         .executableTarget(
