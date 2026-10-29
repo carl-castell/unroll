@@ -13,6 +13,18 @@ public enum TaskStoreError: Error, Equatable, CustomStringConvertible {
     }
 }
 
+/// App settings in `settings.json`, next to the tasks.
+public struct Settings: Codable, Sendable, Equatable {
+    /// Preselected in the main menu.
+    public var lastUsedTaskID: UUID?
+    /// Defaults offered when creating a task.
+    public var defaultFolderTemplate: FolderTemplate = .default
+    public var defaultVersions: VersionPolicy = .original
+    public var defaultNotify = false
+
+    public init() {}
+}
+
 /// Sync tasks in `~/.config/unroll/tasks.json` (or `$XDG_CONFIG_HOME/unroll`).
 public struct TaskStore: Sendable {
     public let directory: URL
@@ -54,6 +66,35 @@ public struct TaskStore: Sendable {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let data = try Self.encoder.encode(TasksFile(version: Self.currentVersion, tasks: tasks))
         try data.write(to: tasksURL, options: .atomic)
+    }
+
+    // MARK: Settings
+
+    public var settingsURL: URL { directory.appending(path: "settings.json") }
+
+    private struct SettingsFile: Codable {
+        var version: Int
+        var settings: Settings
+    }
+
+    /// Defaults when the file is missing or unreadable; settings are conveniences, not configuration.
+    public func loadSettings() -> Settings {
+        guard let data = try? Data(contentsOf: settingsURL),
+              let file = try? Self.decoder.decode(SettingsFile.self, from: data),
+              file.version == Self.currentVersion else { return Settings() }
+        return file.settings
+    }
+
+    public func saveSettings(_ settings: Settings) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let data = try Self.encoder.encode(SettingsFile(version: Self.currentVersion, settings: settings))
+        try data.write(to: settingsURL, options: .atomic)
+    }
+
+    public func saveLastUsedTask(_ id: UUID) throws {
+        var settings = loadSettings()
+        settings.lastUsedTaskID = id
+        try saveSettings(settings)
     }
 
     private static let encoder: JSONEncoder = {
