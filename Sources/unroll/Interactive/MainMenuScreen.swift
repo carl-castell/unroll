@@ -5,7 +5,7 @@ import UnrollStore
 
 struct MainMenuScreen: Screen {
     enum Action: Equatable {
-        case run(UUID), preview(UUID), separator, newTask, manage, status, rebuild, help, settings, quit
+        case run(UUID), preview(UUID), newTask, manage, status, rebuild, help, settings, quit
     }
 
     func run(_ app: AppContext) async -> Next {
@@ -14,32 +14,29 @@ struct MainMenuScreen: Screen {
         let last = tasks.first { $0.id == lastUsedID } ?? tasks.first
         await printHeader(app, task: last)
 
+        // Noora's menus have no unselectable lines, so there is no separator and no extra arrow:
+        // the selector is the only marker, and the last used task comes first so Enter runs it.
         var choices: [Choice<Action>] = []
         if let last {
-            // First, so Enter runs the most recently used task.
-            choices.append(Choice("▶ Run \"\(last.name)\"  \(Self.lastRunText(last))", .run(last.id)))
-            choices.append(Choice("  Preview \"\(last.name)\"  (dry run)", .preview(last.id)))
+            choices.append(Choice("Run \"\(last.name)\"  \(Self.lastRunText(last))", .run(last.id)))
+            choices.append(Choice("Preview \"\(last.name)\"  (dry run)", .preview(last.id)))
         }
         for task in tasks where task.id != last?.id {
-            choices.append(Choice("  Run \"\(task.name)\"", .run(task.id)))
+            choices.append(Choice("Run \"\(task.name)\"", .run(task.id)))
         }
+        choices.append(Choice("New sync task", .newTask))
         if !tasks.isEmpty {
-            choices.append(Choice("  ─────────────", .separator))
+            choices.append(Choice("Edit / delete task", .manage))
         }
-        choices.append(Choice("  New sync task", .newTask))
+        choices.append(Choice("Status & history", .status))
         if !tasks.isEmpty {
-            choices.append(Choice("  Edit / delete task", .manage))
+            choices.append(Choice("Rebuild index", .rebuild))
         }
-        choices.append(Choice("  Status & history", .status))
-        if !tasks.isEmpty {
-            choices.append(Choice("  Rebuild index", .rebuild))
-        }
-        choices += [Choice("  Help", .help), Choice("  Settings", .settings), Choice("  Quit", .quit)]
+        choices += [Choice("Help", .help), Choice("Settings", .settings), Choice("Quit", .quit)]
 
         switch app.noora.menu("What do you want to do?", choices) {
         case .run(let id): return .screen(SyncScreen(taskID: id, mode: .run))
         case .preview(let id): return .screen(SyncScreen(taskID: id, mode: .preview))
-        case .separator: return .mainMenu
         case .newTask: return .screen(NewTaskScreen())
         case .manage: return .screen(ManageTasksScreen())
         case .status: return .screen(StatusScreen())
