@@ -9,6 +9,15 @@ public struct DeviceID: Hashable, Sendable, Codable, CustomStringConvertible {
     }
 
     public var description: String { rawValue }
+
+    public init(from decoder: any Decoder) throws {
+        rawValue = try decoder.singleValueContainer().decode(String.self)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 public enum DeviceAccess: Sendable, Equatable {
