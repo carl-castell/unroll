@@ -36,21 +36,18 @@ struct Scan: AsyncParsableCommand {
             throw UnrollExit.deviceUnavailable
         }
         for info in devices {
-            let state = info.access == .available ? "ready" : "locked or not trusted"
-            print("  \(info.name) (\(info.productKind ?? "unknown")) id=\(info.id) [\(state)]")
+            // Before a session is open, iPhones always report access as restricted, so no state is shown here.
+            print("  \(info.name) (\(info.productKind ?? "unknown")) id=\(info.id)")
         }
 
         guard let target = pick(from: devices) else {
             print("No connected device matches \"\(device ?? "")\".")
             throw UnrollExit.deviceUnavailable
         }
-        if target.access == .restricted {
-            print("Waiting up to \(unlockTimeout)s: unlock \"\(target.name)\" and tap Trust if asked…")
-        }
 
         let session: ICCDeviceSession
         do {
-            session = try await browser.openSession(target.id, unlockTimeout: .seconds(unlockTimeout))
+            session = try await openSession(target, browser: browser)
         } catch {
             print(Self.message(for: error))
             throw UnrollExit.deviceUnavailable
@@ -79,6 +76,17 @@ struct Scan: AsyncParsableCommand {
         }
         if exif > 0 {
             await printExif(session, limit: exif)
+        }
+    }
+
+    /// Opens the device, asking to unlock it only if a first quick attempt fails.
+    @MainActor
+    private func openSession(_ target: DeviceInfo, browser: ICCDeviceBrowser) async throws(DeviceError) -> ICCDeviceSession {
+        do {
+            return try await browser.openSession(target.id, unlockTimeout: .seconds(2))
+        } catch .accessRestricted, .sessionFailed {
+            print("Waiting up to \(unlockTimeout)s: unlock \"\(target.name)\" and tap Trust if asked…")
+            return try await browser.openSession(target.id, unlockTimeout: .seconds(unlockTimeout))
         }
     }
 

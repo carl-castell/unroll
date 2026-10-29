@@ -23,6 +23,7 @@ public struct DeviceID: Hashable, Sendable, Codable, CustomStringConvertible {
 public enum DeviceAccess: Sendable, Equatable {
     case available
     /// Passcode-locked, or connected to a Mac the device doesn't trust yet.
+    /// Until a session is opened, iPhones report this even when unlocked and trusted.
     case restricted
 }
 
