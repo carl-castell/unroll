@@ -62,7 +62,8 @@ struct Scan: AsyncParsableCommand {
         let items: [DeviceItem]
         do {
             items = try await session.listItems { percent in
-                Task { @MainActor in reporter.report(percent) }
+                // The ImageCaptureCore session reports progress on the main actor.
+                MainActor.assumeIsolated { reporter.report(percent) }
             }
         } catch {
             print(Self.message(for: error))
@@ -87,17 +88,22 @@ struct Scan: AsyncParsableCommand {
     }
 
     private func printSummary(_ items: [DeviceItem]) {
-        let byKind = Dictionary(grouping: items, by: \.kind)
         let total = items.reduce(Int64(0)) { $0 + $1.size }
-        print("\n\(items.count) items, \(Self.bytes(total))")
-        for kind in [MediaKind.photo, .video, .sidecar, .other] {
-            guard let group = byKind[kind] else { continue }
-            print("  \(kind.rawValue): \(group.count) (\(Self.bytes(group.reduce(0) { $0 + $1.size })))")
+        print("\n\(items.count) files, \(Self.bytes(total))")
+        let rows: [(String, (DeviceItem) -> Bool)] = [
+            ("photos", { $0.role == .original && $0.kind == .photo }),
+            ("videos", { $0.role == .original && $0.kind == .video }),
+            ("Live Photo videos", { $0.role == .livePhotoVideo }),
+            ("edited versions", { $0.role == .edited }),
+            ("sidecars (AAE, DAT)", { $0.role == .sidecar }),
+            ("other", { $0.role == .original && $0.kind == .other }),
+        ]
+        for (label, matches) in rows {
+            let group = items.filter(matches)
+            guard !group.isEmpty else { continue }
+            print("  \(label): \(group.count) (\(Self.bytes(group.reduce(0) { $0 + $1.size })))")
         }
-        let groups = Dictionary(grouping: items.filter { $0.groupID != nil && $0.kind != .sidecar }, by: \.groupID)
-        let multi = groups.values.filter { $0.count > 1 }
-        print("  groups with more than one file (e.g. Live Photos): \(multi.count)")
-        print("  items without capture date: \(items.filter { $0.captureDate == nil }.count)")
+        print("  files without capture date: \(items.filter { $0.captureDate == nil }.count)")
         print("  items with size 0: \(items.filter { $0.size == 0 }.count)")
     }
 
@@ -106,8 +112,8 @@ struct Scan: AsyncParsableCommand {
         print("")
         for item in shown {
             let date = item.captureDate.map(Self.date) ?? "no date"
-            let group = item.groupID.map { " group=\($0.prefix(8))" } ?? ""
-            print("  \(item.originalFilename)  \(date)  \(Self.bytes(item.size))  \(item.kind.rawValue)\(group)")
+            let asset = item.assetID.map { " asset=\($0.prefix(8))" } ?? ""
+            print("  \(item.filename)  \(date)  \(Self.bytes(item.size))  \(item.kind.rawValue)/\(item.role.rawValue)\(asset)")
         }
         if shown.count < items.count {
             print("  … \(items.count - shown.count) more (use --limit 0 to show all)")

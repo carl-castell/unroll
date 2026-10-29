@@ -22,18 +22,12 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
         camera.delegate = self
         let deadline = ContinuousClock.now + unlockTimeout
         while true {
-            // A locked or untrusted iPhone refuses the session, so wait for the restriction to lift first.
-            while camera.isAccessRestrictedAppleDevice {
-                guard ContinuousClock.now < deadline else {
-                    throw .accessRestricted(name: info.name)
-                }
-                try await pause(.milliseconds(250))
-            }
+            // Requesting the session is what makes an unlocked iPhone show "Trust This Computer?",
+            // so ask right away and keep retrying while it is locked or waiting for Trust.
             do {
                 try await camera.requestOpenSession()
                 return
             } catch {
-                // The restriction flag can lag behind the device state; retry until the deadline.
                 guard ContinuousClock.now < deadline else {
                     throw camera.isAccessRestrictedAppleDevice
                         ? .accessRestricted(name: info.name)
@@ -75,37 +69,49 @@ public final class ICCDeviceSession: NSObject, DeviceSession {
         String(item.ptpObjectHandle)
     }
 
+    /// Maps a media file and its attached files. On iPhones, a Live Photo's MOV and any AAE/DAT
+    /// edit data arrive as `sidecarFiles` of the photo; edited renderings (IMG_E1234) are separate
+    /// media files that share the original's `relatedUUID`.
     static func items(for file: ICCameraFile) -> [DeviceItem] {
-        let main = DeviceItem(
-            deviceItemID: itemID(file),
-            originalFilename: file.originalFilename ?? file.name ?? itemID(file),
-            // Capture-date source is still being validated against real devices (milestone 1).
-            captureDate: file.creationDate ?? file.fileCreationDate,
-            size: Int64(file.fileSize),
-            kind: kind(of: file),
-            groupID: file.groupUUID,
-            parentItemID: nil
-        )
-        let sidecars = (file.sidecarFiles ?? []).compactMap { $0 as? ICCameraFile }.map { sidecar in
-            DeviceItem(
-                deviceItemID: itemID(sidecar),
-                originalFilename: sidecar.originalFilename ?? sidecar.name ?? itemID(sidecar),
-                captureDate: sidecar.creationDate ?? sidecar.fileCreationDate ?? main.captureDate,
-                size: Int64(sidecar.fileSize),
-                kind: .sidecar,
-                groupID: file.groupUUID,
-                parentItemID: main.deviceItemID
-            )
+        let assetID = file.relatedUUID.map { String($0.prefix { $0 != "/" }) }
+        let kind = kind(of: file)
+        let main = item(for: file, kind: kind, role: isEdited(file) ? .edited : .original, assetID: assetID, parent: nil)
+        let attached = (file.sidecarFiles ?? []).compactMap { $0 as? ICCameraFile }.map { sidecar in
+            let sidecarKind = Self.kind(of: sidecar)
+            let role: ItemRole = kind == .photo && sidecarKind == .video ? .livePhotoVideo : .sidecar
+            return item(for: sidecar, kind: sidecarKind, role: role, assetID: assetID, parent: main)
         }
-        return [main] + sidecars
+        return [main] + attached
+    }
+
+    private static func item(
+        for file: ICCameraFile, kind: MediaKind, role: ItemRole, assetID: String?, parent: DeviceItem?
+    ) -> DeviceItem {
+        DeviceItem(
+            deviceItemID: itemID(file),
+            filename: file.name ?? file.originalFilename ?? itemID(file),
+            originalFilename: file.originalFilename,
+            // ImageCaptureCore reports the photo's local clock time, interpreted in the Mac's time zone.
+            captureDate: file.creationDate ?? file.fileCreationDate ?? parent?.captureDate,
+            size: Int64(file.fileSize),
+            kind: kind,
+            role: role,
+            assetID: assetID,
+            parentItemID: parent?.deviceItemID
+        )
+    }
+
+    private static func isEdited(_ file: ICCameraFile) -> Bool {
+        if file.originalFilename?.lowercased().hasPrefix("fullsizerender") == true { return true }
+        return file.name.map { $0.range(of: #"^[A-Z]+_E\d"#, options: .regularExpression) != nil } ?? false
     }
 
     static func kind(of file: ICCameraItem) -> MediaKind {
-        let type = file.uti.flatMap(UTType.init) ?? (file.name.map { UTType(filenameExtension: ($0 as NSString).pathExtension) } ?? nil)
+        let type = file.uti.flatMap(UTType.init)
+            ?? file.name.flatMap { UTType(filenameExtension: ($0 as NSString).pathExtension) }
         guard let type else { return .other }
         if type.conforms(to: .image) { return .photo }
         if type.conforms(to: .audiovisualContent) { return .video }
-        if (file.name as NSString?)?.pathExtension.uppercased() == "AAE" { return .sidecar }
         return .other
     }
 }

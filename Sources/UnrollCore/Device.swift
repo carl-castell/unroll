@@ -32,37 +32,58 @@ public struct DeviceInfo: Sendable, Equatable, Identifiable {
 }
 
 public enum MediaKind: String, Sendable, Codable {
-    case photo, video, sidecar, other
+    case photo, video, other
+}
+
+/// How a file relates to the photo or video it belongs to.
+public enum ItemRole: String, Sendable, Codable {
+    /// The original photo or video.
+    case original
+    /// The video half of a Live Photo, attached to its photo.
+    case livePhotoVideo
+    /// An edited rendering (IMG_E1234), next to the original.
+    case edited
+    /// Edit instructions or other data files (AAE, DAT).
+    case sidecar
 }
 
 /// One file on the device, described without downloading it.
 public struct DeviceItem: Sendable, Equatable {
     /// Identifies the item within one open session.
     public let deviceItemID: String
-    public let originalFilename: String
+    /// The file name on the device, e.g. IMG_1234.HEIC or IMG_E1234.HEIC.
+    public let filename: String
+    /// The name the file had when it was created; "FullSizeRender.heic" for edits,
+    /// or another device's name for photos that were shared to this one.
+    public let originalFilename: String?
     public let captureDate: Date?
     public let size: Int64
     public let kind: MediaKind
-    /// Shared by the files of one asset, e.g. the HEIC and MOV of a Live Photo.
-    public let groupID: String?
-    /// Set on sidecar files (AAE) to the item they belong to.
+    public let role: ItemRole
+    /// Shared by an original, its edits and its Live Photo video.
+    public let assetID: String?
+    /// Set on Live Photo videos and sidecars to the item they are attached to.
     public let parentItemID: String?
 
     public init(
         deviceItemID: String,
-        originalFilename: String,
+        filename: String,
+        originalFilename: String?,
         captureDate: Date?,
         size: Int64,
         kind: MediaKind,
-        groupID: String?,
+        role: ItemRole,
+        assetID: String?,
         parentItemID: String?
     ) {
         self.deviceItemID = deviceItemID
+        self.filename = filename
         self.originalFilename = originalFilename
         self.captureDate = captureDate
         self.size = size
         self.kind = kind
-        self.groupID = groupID
+        self.role = role
+        self.assetID = assetID
         self.parentItemID = parentItemID
     }
 }
