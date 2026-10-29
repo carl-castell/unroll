@@ -4,7 +4,7 @@ import UnrollCore
 import UnrollStore
 
 /// The home screen of one task: the last used one, or the one picked under Other tasks….
-/// Its name is the heading; More… holds its other options.
+/// Run and More… name the task; More… holds its other options.
 struct MainMenuScreen: Screen {
     enum Action: Equatable {
         case run(UUID), more(UUID), otherTasks, newTask, helpAndSettings, quit
@@ -29,15 +29,20 @@ struct MainMenuScreen: Screen {
             let choices = [
                 Choice("New sync task", Action.newTask), Choice("Help & settings…", .helpAndSettings), Choice("Quit", .quit),
             ]
-            return next(for: app.noora.menu("No sync tasks yet", choices))
+            print(app.noora.format("\(.muted("No sync tasks yet"))"))
+            return next(for: app.noora.menu("Select an action", choices))
         }
 
-        // Run comes first, so Enter runs the task.
-        var choices = [Choice("Run", Action.run(task.id)), Choice("More…", .more(task.id))]
-        choices.append(Choice(tasks.count > 1 ? "Other tasks…" : "New sync task", tasks.count > 1 ? .otherTasks : .newTask))
-        choices += [Choice("Help & settings…", .helpAndSettings), Choice("Quit", .quit)]
-        let heading = "\(Self.readiness(task, devices: devices, app: app)) \(task.name)  \(Self.lastRunText(task))"
-        return next(for: app.noora.menu("\(heading)", choices))
+        // Run comes first, so Enter runs the task. Its first column holds the readiness dot.
+        let ready = Self.readiness(task, devices: devices, app: app)
+        let choices = [
+            Choice("\(ready) Run \"\(task.name)\"  \(Self.lastRunText(task))", Action.run(task.id)),
+            Choice("  More for \"\(task.name)\"…", .more(task.id)),
+            tasks.count > 1 ? Choice("  Other tasks…", .otherTasks) : Choice("  New sync task", .newTask),
+            Choice("  Help & settings…", .helpAndSettings),
+            Choice("  Quit", .quit),
+        ]
+        return next(for: app.noora.menu("Select an action", choices))
     }
 
     private func next(for action: Action) -> Next {

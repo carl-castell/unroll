@@ -68,23 +68,23 @@ From then on, just connect your iPhone and SSD, type `unroll`, and press Enter.
 
 ### Interactive menu
 
-Running `unroll` in a terminal opens a menu you navigate with the arrow keys. It's the home screen of your most recently used sync task, with **Run** preselected, so **Enter runs it**:
+Running `unroll` in a terminal opens a menu you navigate with the arrow keys. Your most recently used sync task is preselected, so **Enter runs it**:
 
 ```
  unroll
  Connected: My iPhone (iPhone)
- ● iPhone → SSD  (last run 3 days ago)
- ❯ Run
-   More…
-   Other tasks…
-   Help & settings…
-   Quit
+ Select an action
+ ❯ ● Run "iPhone → SSD"  (last run 3 days ago)
+     More for "iPhone → SSD"…
+     Other tasks…
+     Help & settings…
+     Quit
 ```
 
 A green ● means the task is ready to run: its iPhone and its destination are both connected. A grey ○ means one of them is missing.
 
 - **More…** holds the task's other options: preview (dry run), edit, delete, rebuild index and history.
-- **Other tasks…** lists your other tasks, each with its dot, and **New sync task**. Picking a task opens its home screen.
+- **Other tasks…** lists your other tasks, each with its dot, and **New sync task**. Picking a task shows this menu for that task.
 - **Help & settings…** holds the help topics and the defaults for new tasks.
 
 During a sync you see each step with a status indicator (checking the destination folder and its drive, connecting to the iPhone, reading the item list, comparing), followed by a progress bar for the transfer and a summary at the end.
