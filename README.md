@@ -37,7 +37,7 @@ Homebrew builds `unroll` from source on your Mac, so there's no unsigned binary 
 
 ### Build from source (for development)
 
-Requires Xcode or the Xcode Command Line Tools.
+Requires Xcode or the Xcode Command Line Tools, version 16 or later.
 
 ```sh
 git clone https://github.com/carl-castell/unroll.git
@@ -48,7 +48,8 @@ cp .build/release/unroll /usr/local/bin/
 
 ### Requirements
 
-- macOS (Apple silicon or Intel)
+- macOS 14 Sonoma or later (Apple silicon or Intel)
+- Xcode or the Xcode Command Line Tools 16 or later, to build it (Swift 6); Homebrew uses them too
 - An iPhone or iPad connected by cable
 - A drive to copy to: usually an external SSD (APFS or Mac OS Extended, Journaled), but a network share or a folder on the Mac's internal disk works too
 
