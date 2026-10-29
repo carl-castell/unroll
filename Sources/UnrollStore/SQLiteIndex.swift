@@ -99,6 +99,19 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
         }
     }
 
+    public func files(fromDevice id: DeviceID) throws -> [IndexedFile] {
+        try locked {
+            var files: [IndexedFile] = []
+            try database.query(
+                "SELECT capture_date, size, filename, relative_path FROM items WHERE device_id = ? AND role != 'sidecar'",
+                [.text(id.rawValue)]
+            ) { row in
+                if let path = row.text(3) { files.append(IndexedFile(key: Self.key(row, from: 0), relativePath: path)) }
+            }
+            return files
+        }
+    }
+
     public func meta() throws -> IndexMeta {
         try locked {
             var indexID = ""

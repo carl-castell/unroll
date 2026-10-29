@@ -130,10 +130,12 @@ public struct SyncEngine: Sendable {
 
         var importedKeys: ImportedKeys
         let meta: IndexMeta?
+        let copiedEarlier: [IndexedFile]
         do {
             let index = try indexes.existingIndex(at: destination.root)
             importedKeys = try index?.importedKeys() ?? []
             meta = try index?.meta()
+            copiedEarlier = try index?.files(fromDevice: task.device.id) ?? []
         } catch {
             await session.close()
             throw .indexUnreadable(String(describing: error))
@@ -153,6 +155,15 @@ public struct SyncEngine: Sendable {
             items: items, importedKeys: importedKeys, versions: task.versions, folderTemplate: task.folderTemplate
         )
         result.summary.existingFiles = existingFiles.count
+
+        // Copied from this device earlier, still in the destination, but gone from the device.
+        let onDevice = Set(items.compactMap(ItemKey.init))
+        let gone = copiedEarlier
+            .filter { !onDevice.contains($0.key) }
+            .filter { FileManager.default.fileExists(atPath: destination.root.appending(path: $0.relativePath).path) }
+            .map(\.relativePath)
+            .sorted()
+        result.summary.goneFromDevice = gone.count
         events(.comparisonDone(result.summary))
         return SyncPlan(
             taskID: task.id,
@@ -164,7 +175,8 @@ public struct SyncEngine: Sendable {
             summary: result.summary,
             confirmation: ConfirmationPolicy.reason(for: task, index: meta, newItems: result.items.count),
             existingFiles: existingFiles.files,
-            otherRule: task.otherFolderRule
+            otherRule: task.otherFolderRule,
+            goneFromDevice: gone
         )
     }
 

@@ -5,6 +5,23 @@ public protocol ImportIndex: Sendable {
     /// Keys of everything already imported, including aliases of content duplicates.
     func importedKeys() throws -> ImportedKeys
     func meta() throws -> IndexMeta
+    /// Photos and videos (no edit data) copied from one device, with where they are now.
+    func files(fromDevice id: DeviceID) throws -> [IndexedFile]
+}
+
+extension ImportIndex {
+    public func files(fromDevice id: DeviceID) throws -> [IndexedFile] { [] }
+}
+
+/// A file in the index: its key and where it is in the destination.
+public struct IndexedFile: Sendable, Equatable {
+    public let key: ItemKey
+    public let relativePath: String
+
+    public init(key: ItemKey, relativePath: String) {
+        self.key = key
+        self.relativePath = relativePath
+    }
 }
 
 public struct IndexMeta: Sendable, Equatable {

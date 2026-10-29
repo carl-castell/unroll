@@ -25,7 +25,7 @@ Run without arguments in a terminal, unroll opens an interactive menu. Outside a
 .SH COMMANDS
 .SS run <task>
 .PP
-Checks that the task's destination and device are connected, compares the device with the destination's index and copies only new items. \fB\-\-dry\-run\fR only shows how many files would be copied, their size and the space left afterwards; \fB\-\-list\fR adds a breakdown by month and every file. \fB\-\-yes\fR confirms a first run (or a run after the task's device, destination or index changed) without asking. \fB\-\-json\fR writes one JSON object per line, ending with \fBresult\fR and the exit code. Ctrl\-C finishes the current file, then stops.
+Checks that the task's destination and device are connected, compares the device with the destination's index and copies only new items. \fB\-\-dry\-run\fR only shows how many files would be copied, their size and the space left afterwards; \fB\-\-list\fR adds a breakdown by month, every file, and the files copied earlier that are no longer on the device. \fB\-\-yes\fR confirms a first run (or a run after the task's device, destination or index changed) without asking. \fB\-\-json\fR writes one JSON object per line, ending with \fBresult\fR and the exit code. Ctrl\-C finishes the current file, then stops.
 .SS status
 .PP
 Shows the connected devices and, for each task, whether its device and destination are connected, its last run and the number of files in its destination. \fB\-\-json\fR prints a single object.
@@ -89,6 +89,8 @@ A sync task copies new photos and videos from one iPhone or iPad to one folder. 
 .SS How new items are found
 .PP
 An item counts as already imported when its capture time, size and file name match an entry in the destination's index. File names alone repeat on iPhones (IMG_1234), so all three must match. The capture time is the photo's clock time, so changing the Mac's time zone doesn't make old photos look new. Files with identical content are stored once.
+.PP
+unroll never deletes anything, on the device or in the destination. Photos and videos you delete on the iPhone after copying stay in the destination. The report counts them ("12 copied earlier are no longer on the device; their copies are kept"), and \fBunroll run "<task>" \-\-dry\-run \-\-list\fR lists them. Edit files (AAE) aren't counted.
 .PP
 If the destination folder already has photos but no unroll index, for example copied earlier with Image Capture, unroll recognizes them the same way, by name, size and capture time, and doesn't copy them again. The first run records them in its index before copying.
 .SS The first run

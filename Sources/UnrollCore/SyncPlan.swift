@@ -34,6 +34,9 @@ public struct PlanSummary: Sendable, Equatable {
     public let folders: [String]
     /// Files found in a destination without an index; they are indexed before copying.
     public var existingFiles = 0
+    /// Photos and videos copied from this device earlier that are still in the destination
+    /// but no longer on the device, e.g. deleted there. They are kept; this only reports them.
+    public var goneFromDevice = 0
 }
 
 /// What a run would copy: the new items after comparing against the index.
@@ -54,6 +57,8 @@ public struct SyncPlan: Sendable {
     /// Set when files not taken with the task's own cameras go into `Other`. Each item's `folder`
     /// is then where it goes if it is from an own camera; the copy decides from the file itself.
     public internal(set) var otherRule: OtherFolderRule?
+    /// The files counted in `summary.goneFromDevice`, relative to the destination root.
+    public internal(set) var goneFromDevice: [String] = []
 
     public var destinationRoot: URL { destination.root }
 
@@ -73,7 +78,7 @@ public struct SyncPlan: Sendable {
         return SyncPlan(
             taskID: taskID, deviceID: deviceID, destination: destination, session: session,
             items: kept, unavailable: unavailable, summary: summary, confirmation: confirmation,
-            existingFiles: existingFiles, otherRule: otherRule
+            existingFiles: existingFiles, otherRule: otherRule, goneFromDevice: goneFromDevice
         )
     }
 }

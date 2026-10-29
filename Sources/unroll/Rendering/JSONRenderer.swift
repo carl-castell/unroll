@@ -53,7 +53,7 @@ struct JSONRenderer: RunRenderer {
             emit("compared", [
                 "new": summary.newCount, "bytes": summary.newBytes, "alreadyImported": summary.alreadyImported,
                 "excludedByVersions": summary.excludedByVersions, "unavailable": summary.unavailable,
-                "existingFiles": summary.existingFiles,
+                "existingFiles": summary.existingFiles, "goneFromDevice": summary.goneFromDevice,
             ])
         case .recovered(let result):
             emit("recovered", ["committed": result.committed, "discarded": result.discarded])

@@ -87,6 +87,9 @@ struct SyncScreen: Screen {
         if summary.excludedByVersions > 0 {
             app.printMuted("\(summary.excludedByVersions) skipped by the task's original/edited setting")
         }
+        if summary.goneFromDevice > 0 {
+            app.printMuted(Format.goneFromDevice(summary.goneFromDevice))
+        }
         if summary.unavailable > 0 {
             app.printMuted("\(summary.unavailable) not available on the device; see Help → Troubleshooting")
         }
@@ -245,6 +248,7 @@ enum TransferFlow {
         ]
         if summary.duplicates > 0 { details.append("\(summary.duplicates) identical to files already there; not copied again") }
         if summary.unavailable > 0 { details.append("\(summary.unavailable) not available on the device; see Help → Troubleshooting") }
+        if plan.summary.goneFromDevice > 0 { details.append("\(Format.goneFromDevice(plan.summary.goneFromDevice))") }
         if summary.notAttempted > 0 { details.append("\(summary.notAttempted) not copied yet; run the task again to continue") }
         for failure in summary.failed.prefix(5) {
             details.append("\(failure.filename): \(PlainRenderer.describe(failure.reason))")

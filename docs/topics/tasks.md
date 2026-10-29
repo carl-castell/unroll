@@ -20,6 +20,8 @@ A sync task copies new photos and videos from one iPhone or iPad to one folder. 
 
 An item counts as already imported when its capture time, size and file name match an entry in the destination's index. File names alone repeat on iPhones (IMG_1234), so all three must match. The capture time is the photo's clock time, so changing the Mac's time zone doesn't make old photos look new. Files with identical content are stored once.
 
+unroll never deletes anything, on the device or in the destination. Photos and videos you delete on the iPhone after copying stay in the destination. The report counts them ("12 copied earlier are no longer on the device; their copies are kept"), and `unroll run "<task>" --dry-run --list` lists them. Edit files (AAE) aren't counted.
+
 If the destination folder already has photos but no unroll index, for example copied earlier with Image Capture, unroll recognizes them the same way, by name, size and capture time, and doesn't copy them again. The first run records them in its index before copying.
 
 ## The first run

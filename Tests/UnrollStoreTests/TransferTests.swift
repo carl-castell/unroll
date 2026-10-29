@@ -163,6 +163,22 @@ struct TransferTests {
         await engine.close(plan)
     }
 
+    /// Deleted on the iPhone after copying: reported, kept. Deleted from the destination too: not reported.
+    @Test func reportsFilesNoLongerOnTheDevice() async throws {
+        session.items = [
+            item("1", "IMG_1.HEIC", date: june), item("2", "IMG_2.HEIC", date: june + 60), item("3", "IMG_3.HEIC", date: june + 120),
+        ]
+        try await run()
+        try FileManager.default.removeItem(at: root.appending(path: "2026/2026-06/IMG_3.HEIC"))
+        session.items = [item("1", "IMG_1.HEIC", date: june)]
+
+        let plan = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
+        await engine.close(plan)
+        #expect(plan.summary.goneFromDevice == 1)
+        #expect(plan.goneFromDevice == ["2026/2026-06/IMG_2.HEIC"])
+        #expect(try files().contains("2026/2026-06/IMG_2.HEIC"))
+    }
+
     @Test func identicalContentIsRecordedAsAlias() async throws {
         let same = Data(repeating: 7, count: 1_000)
         session.items = [item("1", "IMG_1.HEIC", date: june), item("2", "IMG_9.HEIC", date: june + 60)]

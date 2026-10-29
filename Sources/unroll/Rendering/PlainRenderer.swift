@@ -60,6 +60,7 @@ struct PlainRenderer: RunRenderer {
             if summary.excludedByVersions > 0 {
                 say(dim("  \(summary.excludedByVersions) skipped by the task's original/edited setting"))
             }
+            if summary.goneFromDevice > 0 { say(dim("  \(Format.goneFromDevice(summary.goneFromDevice))")) }
             if summary.unavailable > 0 {
                 say(dim("  \(summary.unavailable) not available on the device (see `unroll help troubleshooting`)"))
             }
@@ -106,6 +107,10 @@ struct PlainRenderer: RunRenderer {
             for month in summary.months {
                 let label = String(format: "%04d-%02d", month.year, month.month)
                 print("  \(label)  \(String(month.count).leftPadded(to: 6))  \(Format.bytes(month.bytes).leftPadded(to: 10))")
+            }
+            if !plan.goneFromDevice.isEmpty {
+                print("\nIn the destination but no longer on the device (kept):")
+                for path in plan.goneFromDevice { print("  \(path)") }
             }
             print("\nNew items:")
             for entry in plan.items {
@@ -187,6 +192,11 @@ enum Format {
 
     static func seconds(_ duration: Duration) -> Double {
         Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
+    }
+
+    /// "12 copied earlier are no longer on the device; their copies are kept".
+    static func goneFromDevice(_ count: Int) -> String {
+        "\(count.formatted()) copied earlier \(count == 1 ? "is" : "are") no longer on the device; \(count == 1 ? "its copy is" : "their copies are") kept"
     }
 
     /// "1,234 new files · 18.4 GB".
