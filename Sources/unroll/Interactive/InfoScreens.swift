@@ -88,57 +88,19 @@ struct RebuildScreen: Screen {
     }
 }
 
+/// The help topics from docs/topics, the same as `unroll help <topic>`.
 struct HelpScreen: Screen {
     var returnTo: UUID?
 
     func run(_ app: AppContext) async -> Next {
         while true {
-            let choices = HelpTopic.allCases.map { Choice($0.title, Optional($0)) } + [Choice("Back", nil)]
-            guard let topic = app.noora.menu("Help", choices) else { return .screen(HelpAndSettingsScreen(returnTo: returnTo)) }
+            let choices = HelpTopics.names.map { Choice(HelpTopics.title($0), Optional($0)) } + [Choice("Back", nil)]
+            guard let name = app.noora.menu("Help", choices), let markdown = HelpTopics.markdown(name) else {
+                return .screen(HelpAndSettingsScreen(returnTo: returnTo))
+            }
             print("")
-            print(topic.text)
-            print(app.noora.format("\(.muted("Also available as: unroll help \(topic.rawValue)"))"))
-        }
-    }
-}
-
-/// Short help texts. Longer topics come from docs/ in a later milestone.
-enum HelpTopic: String, CaseIterable {
-    case keys, setup, tasks, troubleshooting
-
-    var title: String {
-        switch self {
-        case .keys: "Keyboard shortcuts"
-        case .setup: "Setting up your iPhone"
-        case .tasks: "Sync tasks"
-        case .troubleshooting: "Troubleshooting"
-        }
-    }
-
-    var text: String {
-        switch self {
-        case .keys: """
-            ↑ ↓      move in a menu          Enter   choose
-            /        filter long lists       Esc     stop filtering
-            Ctrl-C   during a sync: finish the current file, then stop
-            """
-        case .setup: """
-            • Settings → Photos → Transfer to Mac or PC → Keep Originals, so photos aren't converted to JPEG.
-            • Turn off "Optimize iPhone Storage" if you use iCloud Photos on the phone; otherwise many originals
-              aren't on the iPhone and can't be copied by cable.
-            • Keep the iPhone unlocked during a sync, and tap Trust This Computer the first time.
-            """
-        case .tasks: """
-            A task copies new photos and videos from one device to one folder. It recognizes the device by its
-            ID and the drive by its volume UUID, never by name. The first run asks once before copying; later
-            runs start right away, unless the device, destination or index changed.
-            """
-        case .troubleshooting: """
-            • "Locked or doesn't trust this Mac": unlock the iPhone, tap Trust This Computer, enter the passcode.
-            • Items "not available on the device": their originals are only in iCloud ("Optimize iPhone Storage").
-            • A sync was interrupted: just run it again. Incomplete files are never recorded and are cleaned up.
-            • The index is lost or damaged: use Rebuild index; files are only read.
-            """
+            print(MarkdownText.render(markdown))
+            print(app.noora.format("\n\(.muted("Also available as: unroll help \(name)"))"))
         }
     }
 }

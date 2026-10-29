@@ -47,6 +47,13 @@ extension SyncError {
     }
 }
 
+extension CompletionKind {
+    /// Completes task names from tasks.json; the shell asks unroll for them while you type.
+    static let taskNames = CompletionKind.custom { _, _, _ in
+        ((try? TaskStore().loadTasks()) ?? []).map(\.name)
+    }
+}
+
 struct TaskLookupError: Error {
     let message: String
 }

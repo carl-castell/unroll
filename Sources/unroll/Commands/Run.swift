@@ -24,7 +24,7 @@ struct Run: AsyncParsableCommand {
             """
     )
 
-    @Argument(help: "The task's name, or the start of its ID.")
+    @Argument(help: "The task's name, or the start of its ID.", completion: .taskNames)
     var task: String
 
     @Flag(help: "Check and compare only. Nothing is copied or written.")

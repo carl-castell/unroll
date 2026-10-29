@@ -6,7 +6,7 @@ import UnrollDevice
 /// Lists connected devices and the items on one of them, without downloading anything.
 struct Scan: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "List connected devices and the items on them, without copying anything.",
+        abstract: "List connected devices and the items on them, without copying anything (for troubleshooting).",
         discussion: "A diagnostic command. It reads the item list only and never writes or deletes anything."
     )
 

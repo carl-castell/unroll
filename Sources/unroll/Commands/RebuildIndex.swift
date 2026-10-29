@@ -12,10 +12,14 @@ struct RebuildIndex: AsyncParsableCommand {
             name and SHA-256 hash. Files are only read: nothing is renamed, changed or deleted. \
             The previous index and its run history are replaced. The next run of the task asks \
             for confirmation again.
+
+            Examples:
+              unroll rebuild-index
+              unroll rebuild-index "iPhone → SSD" --yes
             """
     )
 
-    @Argument(help: "The task's name, or the start of its ID. May be omitted if there is only one task.")
+    @Argument(help: "The task's name, or the start of its ID. May be omitted if there is only one task.", completion: .taskNames)
     var task: String?
 
     @Flag(name: .shortAndLong, help: "Don't ask for confirmation.")

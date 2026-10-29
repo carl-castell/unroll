@@ -41,7 +41,13 @@ struct Tasks: AsyncParsableCommand {
     struct Add: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             abstract: "Create a sync task without the interactive wizard.",
-            discussion: "The device must be connected. The destination folder is created on the first run."
+            discussion: """
+                The device must be connected. The destination folder is created on the first run.
+
+                Examples:
+                  unroll tasks add --name "iPhone → SSD" --destination /Volumes/Photos-SSD/Photos
+                  unroll tasks add --name "iPad" --device "My iPad" --destination ~/Pictures/iPad --folder-template YYYY/MM
+                """
         )
 
         @Option(help: "Name of the task, e.g. \"iPhone → SSD\".")
@@ -132,7 +138,7 @@ struct Tasks: AsyncParsableCommand {
             abstract: "Remove a sync task. Files and the index on the destination are kept."
         )
 
-        @Argument(help: "The task's name, or the start of its ID.")
+        @Argument(help: "The task's name, or the start of its ID.", completion: .taskNames)
         var task: String
 
         func run() throws {

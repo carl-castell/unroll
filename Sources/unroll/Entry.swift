@@ -9,6 +9,8 @@ enum Entry {
         // Line-buffer stdout so pipes, logs and Shortcuts see progress as it happens.
         setvbuf(stdout, nil, _IOLBF, 0)
         Task { @MainActor in
+            // `unroll help <topic>`; `unroll help <command>` goes on to the argument parser.
+            if HelpTopics.handle(Array(CommandLine.arguments.dropFirst())) { exit(0) }
             await Unroll.main()
             exit(0)
         }

@@ -5,7 +5,14 @@ let unrollVersion = "0.1.0-dev"
 struct Unroll: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "unroll",
-        abstract: "Copy only the new photos and videos from your iPhone to an external drive.",
+        abstract: "Copy only the new photos and videos from your iPhone to a folder on a drive.",
+        discussion: """
+            Run without arguments in a terminal to open the menu. Outside a terminal, unroll \
+            never shows menus or prompts.
+
+            Help topics: setup, tasks, photos-referenced, troubleshooting, exit-codes, keys.
+            Show one with 'unroll help <topic>'; 'man unroll' has everything.
+            """,
         version: unrollVersion,
         subcommands: [Run.self, Status.self, Tasks.self, RebuildIndex.self, Scan.self]
     )

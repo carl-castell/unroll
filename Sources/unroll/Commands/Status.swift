@@ -7,7 +7,13 @@ import UnrollStore
 struct Status: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Show connected devices and whether each task is ready to run.",
-        discussion: "A task is ready when its device and its destination are both connected."
+        discussion: """
+            A task is ready when its device and its destination are both connected.
+
+            Examples:
+              unroll status
+              unroll status --json
+            """
     )
 
     @Flag(help: "Machine-readable output: a single JSON object.")
