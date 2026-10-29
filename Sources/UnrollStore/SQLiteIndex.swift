@@ -42,22 +42,48 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
         return index
     }
 
+    /// Creates a new, empty index at `url` for a rebuild, with a fresh index ID.
+    /// Uses a rollback journal, so the finished file is self-contained and can be moved into place.
+    static func createForRebuild(at url: URL) throws -> SQLiteIndex {
+        try? FileManager.default.removeItem(at: url)
+        let index = SQLiteIndex(database: try Database(url: url, mode: .readWriteCreate))
+        try index.database.execute("PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;")
+        try index.createSchemaIfNeeded()
+        try index.locked {
+            try index.database.run(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES ('rebuilt_at', ?)", [.text(Date().ISO8601Format())]
+            )
+        }
+        return index
+    }
+
+    /// Folds an index's write-ahead log back into the file, so the file can be replaced safely.
+    static func checkpoint(at url: URL) throws {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        let database = try Database(url: url, mode: .readWriteCreate)
+        try database.execute("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;")
+    }
+
     private init(database: Database) {
         self.database = database
     }
 
     // MARK: Reading
 
-    public func importedKeys() throws -> Set<ItemKey> {
+    public func importedKeys() throws -> ImportedKeys {
         try locked {
-            var keys = Set<ItemKey>()
+            var exact = Set<ItemKey>()
+            var approximate: [ItemKey] = []
+            // Times from the device or from unroll's attributes are exact; times read back from
+            // file metadata during a rebuild may differ by a second or two.
             try database.query("""
-                SELECT capture_date, size, filename FROM items
-                UNION ALL SELECT capture_date, size, filename FROM aliases
+                SELECT capture_date, size, filename, date_source IN ('device', 'attributes') FROM items
+                UNION ALL SELECT capture_date, size, filename, 1 FROM aliases
                 """) { row in
-                keys.insert(Self.key(row, from: 0))
+                let key = Self.key(row, from: 0)
+                if row.int(3) == 1 { exact.insert(key) } else { approximate.append(key) }
             }
-            return keys
+            return ImportedKeys(exact: exact, approximate: approximate)
         }
     }
 
@@ -81,8 +107,10 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
 
     // MARK: Recording
 
-    public func record(_ item: IndexedItem) throws {
-        try locked { try insert(item) }
+    /// - Parameter dateSource: where the capture time came from: `device`, or for rebuilt entries
+    ///   `attributes`, `metadata` or `file-date`.
+    public func record(_ item: IndexedItem, dateSource: String = "device") throws {
+        try locked { try insert(item, dateSource: dateSource) }
     }
 
     func beginPending(tempName: String, key: ItemKey) throws {
@@ -194,14 +222,14 @@ public final class SQLiteIndex: ImportIndex, @unchecked Sendable {
 
     // MARK: Helpers
 
-    private func insert(_ item: IndexedItem) throws {
+    private func insert(_ item: IndexedItem, dateSource: String = "device") throws {
         try database.run("""
             INSERT INTO items (capture_date, size, filename, relative_path, sha256, role, asset_id,
                                device_id, original_filename, date_source, imported_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'device', ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, Self.keyValues(item.key) + [
                 .text(item.relativePath), .blob(item.sha256), .text(item.role.rawValue), Self.optional(item.assetID),
-                Self.optional(item.deviceID?.rawValue), Self.optional(item.originalFilename),
+                Self.optional(item.deviceID?.rawValue), Self.optional(item.originalFilename), .text(dateSource),
                 .int(Int64(item.importedAt.timeIntervalSince1970)),
             ])
     }

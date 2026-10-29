@@ -65,7 +65,7 @@ struct TransferTests {
         #expect(try files() == ["2026/2026-06/IMG_1.HEIC", "2026/2026-06/IMG_2.MOV"])
         let copied = try Data(contentsOf: root.appending(path: "2026/2026-06/IMG_1.HEIC"))
         #expect(copied == FakeDeviceSession.bytes(for: session.items[0]))
-        #expect(try index().importedKeys() == Set(session.items.compactMap(ItemKey.init)))
+        #expect(try index().importedKeys() == ImportedKeys(exact: Set(session.items.compactMap(ItemKey.init))))
         #expect(try index().pendingTransfers().isEmpty)
         #expect(partialFiles.isEmpty)
     }
@@ -150,6 +150,41 @@ struct TransferTests {
         #expect(summary.stoppedBecause == .deviceNotConnected(name: "Test iPhone"))
         #expect(try index().importedKeys() == [ItemKey(session.items[0])!])
         #expect(try index().pendingTransfers().isEmpty)
+    }
+
+    @Test func rebuiltIndexRecognizesEverythingAgain() async throws {
+        let folder = root.appending(path: "2026/2026-06")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("someone else's file".utf8).write(to: folder.appending(path: "IMG_1.HEIC"))
+        session.items = [
+            item("1", "IMG_1.HEIC", date: june, asset: "A"),
+            item("2", "IMG_1.MOV", date: june, kind: .video, role: .livePhotoVideo, asset: "A", parent: "1"),
+            item("3", "IMG_2.HEIC", date: june + 60),
+        ]
+        try await run()
+        let filesBefore = try files()
+        for suffix in ["", "-wal", "-shm"] {
+            try? FileManager.default.removeItem(atPath: SQLiteIndex.url(forDestinationRoot: root).path + suffix)
+        }
+
+        let destination = ResolvedDestination(root: root, volumeName: "Test", kind: .external, format: "APFS", isReadOnly: false)
+        let result = try await IndexRebuilder().rebuild(destination: destination) { _, _ in }
+
+        // The foreign IMG_1.HEIC has no attributes and is indexed by its file date; the rest exactly.
+        #expect(result.files == 4)
+        #expect(result.fromAttributes == 3)
+        #expect(try files() == filesBefore)
+        let plan = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
+        #expect(plan.items.isEmpty)
+        #expect(plan.summary.alreadyImported == 3)
+        await engine.close(plan)
+    }
+
+    @Test func rebuildStripsCollisionSuffixFromFilesWithoutAttributes() {
+        #expect(IndexRebuilder.withoutCollisionSuffix("IMG_1234 (1).HEIC") == "IMG_1234.HEIC")
+        #expect(IndexRebuilder.withoutCollisionSuffix("IMG_1234 (12).MOV") == "IMG_1234.MOV")
+        #expect(IndexRebuilder.withoutCollisionSuffix("Holiday (2025).JPG") == "Holiday.JPG")
+        #expect(IndexRebuilder.withoutCollisionSuffix("IMG_1234.HEIC") == "IMG_1234.HEIC")
     }
 
     @Test func limitKeepsLivePhotoPairsTogether() async throws {

@@ -16,35 +16,18 @@ public final class DestinationStore: DestinationWriter, @unchecked Sendable {
     public let root: URL
     public let partialDirectory: URL
     private let index: SQLiteIndex
-    private let lockDescriptor: Int32
+    private let lock: DestinationLock
 
     public init(destination: ResolvedDestination) throws {
         root = destination.root
-        let unroll = root.appending(path: SQLiteIndex.directoryName, directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: unroll, withIntermediateDirectories: true)
-
-        let descriptor = open(unroll.appending(path: "lock").path, O_CREAT | O_RDWR | O_CLOEXEC, 0o644)
-        guard descriptor >= 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
-        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
-            close(descriptor)
-            throw SyncError.destinationBusy
-        }
-        lockDescriptor = descriptor
-
-        partialDirectory = unroll.appending(path: "partial", directoryHint: .isDirectory)
-        do {
-            try FileManager.default.createDirectory(at: partialDirectory, withIntermediateDirectories: true)
-            index = try SQLiteIndex.openOrCreate(destinationRoot: root, useWAL: destination.kind != .network)
-        } catch {
-            flock(descriptor, LOCK_UN)
-            close(descriptor)
-            throw error
-        }
+        lock = try DestinationLock(root: root)
+        partialDirectory = Self.partialDirectory(root: root)
+        try FileManager.default.createDirectory(at: partialDirectory, withIntermediateDirectories: true)
+        index = try SQLiteIndex.openOrCreate(destinationRoot: root, useWAL: destination.kind != .network)
     }
 
-    deinit {
-        flock(lockDescriptor, LOCK_UN)
-        close(lockDescriptor)
+    static func partialDirectory(root: URL) -> URL {
+        root.appending(path: SQLiteIndex.directoryName).appending(path: "partial", directoryHint: .isDirectory)
     }
 
     public func recoverInterrupted() throws -> RecoveryResult {
@@ -69,7 +52,7 @@ public final class DestinationStore: DestinationWriter, @unchecked Sendable {
         return RecoveryResult(committed: committed, discarded: discarded)
     }
 
-    public func importedKeys() throws -> Set<ItemKey> {
+    public func importedKeys() throws -> ImportedKeys {
         try index.importedKeys()
     }
 
