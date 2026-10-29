@@ -15,6 +15,8 @@ A sync task copies new photos and videos from one iPhone or iPad to one folder. 
 
 An item counts as already imported when its capture time, size and file name match an entry in the destination's index. File names alone repeat on iPhones (IMG_1234), so all three must match. The capture time is the photo's clock time, so changing the Mac's time zone doesn't make old photos look new. Files with identical content are stored once.
 
+If the destination folder already has photos but no unroll index, for example copied earlier with Image Capture, unroll recognizes them the same way, by name, size and capture time, and doesn't copy them again. The first run records them in its index before copying.
+
 ## The first run
 
 The first run of a task shows what will be copied and asks once. Later runs start right away. It asks again only if the task's device or destination changed, or if the destination's index is empty or was rebuilt. Without a terminal, such a run stops with exit code 5; pass `--yes` to confirm it.
