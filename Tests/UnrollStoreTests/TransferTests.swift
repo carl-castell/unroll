@@ -217,6 +217,30 @@ struct TransferTests {
         await engine.close(plan)
     }
 
+    /// Indexing before the first copy reuses what the preview read, unless the file changed since.
+    @Test func indexingReusesKeysFromTheScan() async throws {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 100).write(to: root.appending(path: "IMG_1.HEIC"))
+        try Data(repeating: 2, count: 100).write(to: root.appending(path: "IMG_2.HEIC"))
+        let scanned = await ExistingFilesScanner().scan(in: root) { _, _ in }
+        #expect(scanned.count == 2)
+        #expect(scanned.files.map(\.relativePath) == ["IMG_1.HEIC", "IMG_2.HEIC"])
+
+        // A key the scan "read" that differs from what reading again would give shows it was reused.
+        let marked = ItemKey(captureDate: LocalTimestamp(secondsSince1970: june), size: 100, filename: "IMG_1.HEIC")
+        let known = [ExistingFile(relativePath: "IMG_1.HEIC", key: marked, dateSource: "metadata")]
+            + scanned.files.filter { $0.relativePath == "IMG_2.HEIC" }
+        // IMG_2 changed size after the scan, so it is read again.
+        try Data(repeating: 2, count: 150).write(to: root.appending(path: "IMG_2.HEIC"))
+
+        let destination = ResolvedDestination(root: root, volumeName: "Test", kind: .external, format: "APFS", isReadOnly: false)
+        let indexed = try await ExistingFilesScanner().index(destination, known: known) { _, _ in }
+        #expect(indexed == 2)
+        let keys = try index().importedKeys()
+        #expect(keys.contains(marked))
+        #expect(keys.contains(ItemKey(captureDate: scanned.files[1].key.captureDate, size: 150, filename: "IMG_2.HEIC")))
+    }
+
     /// A Photos library kept in the destination is a package; its contents aren't indexed.
     @Test func rebuildSkipsPackagesLikePhotosLibraries() throws {
         let library = root.appending(path: "Test.photoslibrary/originals/0", directoryHint: .isDirectory)

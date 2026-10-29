@@ -23,7 +23,9 @@ extension SyncEngine {
         let hasIndex = ((try? indexes.existingIndex(at: plan.destination.root)) ?? nil) != nil
         if plan.summary.existingFiles > 0, let existing, !hasIndex {
             do {
-                _ = try await existing.index(plan.destination) { events(.existingFilesIndexing(done: $0, total: $1)) }
+                _ = try await existing.index(plan.destination, known: plan.existingFiles) {
+                    events(.existingFilesIndexing(done: $0, total: $1))
+                }
             } catch let error as SyncError {
                 throw error
             } catch {

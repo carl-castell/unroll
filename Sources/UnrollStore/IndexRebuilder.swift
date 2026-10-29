@@ -25,8 +25,11 @@ public struct RebuildResult: Sendable, Equatable {
 public struct IndexRebuilder: Sendable {
     public init() {}
 
+    /// - Parameter known: files read by an earlier scan. A file whose path and size are unchanged
+    ///   keeps the key read then, so only its hash is computed.
     public func rebuild(
-        destination: ResolvedDestination, progress: @escaping @Sendable (_ done: Int, _ total: Int) -> Void
+        destination: ResolvedDestination, known: [ExistingFile] = [],
+        progress: @escaping @Sendable (_ done: Int, _ total: Int) -> Void
     ) async throws -> RebuildResult {
         let root = destination.root
         let lock = try DestinationLock(root: root)
@@ -37,13 +40,14 @@ public struct IndexRebuilder: Sendable {
         let finalURL = SQLiteIndex.url(forDestinationRoot: root)
         let rebuildURL = finalURL.deletingLastPathComponent().appending(path: "index.rebuild.sqlite")
         var result = RebuildResult()
+        let knownByPath = Dictionary(known.map { ($0.relativePath, $0) }, uniquingKeysWith: { first, _ in first })
 
         do {
             let index = try SQLiteIndex.createForRebuild(at: rebuildURL)
             var seen = Set<ItemKey>()
             for (done, file) in files.enumerated() {
                 progress(done, files.count)
-                let entry = try await Self.describe(file, root: root, imageBases: imageBases)
+                let entry = try await Self.describe(file, root: root, imageBases: imageBases, known: knownByPath)
                 result.files += 1
                 switch entry.dateSource {
                 case "attributes": result.fromAttributes += 1
@@ -86,13 +90,25 @@ public struct IndexRebuilder: Sendable {
             .sorted { $0.path < $1.path }
     }
 
-    private static func describe(
-        _ file: URL, root: URL, imageBases: Set<String>
-    ) async throws -> (item: IndexedItem, dateSource: String) {
-        let (key, source) = try await key(of: file)
-        let filename = key.filename
+    /// The file's path relative to the destination root.
+    static func relativePath(of file: URL, root: URL) -> String {
         let base = root.resolvingSymlinksInPath().path
-        let relative = String(file.resolvingSymlinksInPath().path.dropFirst(base.count + 1))
+        return String(file.resolvingSymlinksInPath().path.dropFirst(base.count + 1))
+    }
+
+    private static func describe(
+        _ file: URL, root: URL, imageBases: Set<String>, known: [String: ExistingFile]
+    ) async throws -> (item: IndexedItem, dateSource: String) {
+        let relative = relativePath(of: file, root: root)
+        let key: ItemKey
+        let source: String
+        if let earlier = known[relative],
+           let size = try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize, Int64(size) == earlier.key.size {
+            (key, source) = (earlier.key, earlier.dateSource)
+        } else {
+            (key, source) = try await self.key(of: file)
+        }
+        let filename = key.filename
         let item = IndexedItem(
             key: key,
             relativePath: relative,
@@ -193,21 +209,24 @@ public struct IndexRebuilder: Sendable {
 public struct ExistingFilesScanner: ExistingFilesScanning {
     public init() {}
 
-    public func keys(in root: URL, progress: @escaping @Sendable (Int, Int) -> Void) async -> (count: Int, keys: ImportedKeys) {
+    public func scan(in root: URL, progress: @escaping @Sendable (Int, Int) -> Void) async -> ExistingFiles {
         let files = IndexRebuilder.mediaFiles(in: root)
-        var exact = Set<ItemKey>()
-        var approximate: [ItemKey] = []
+        var found = ExistingFiles(count: files.count)
         for (done, file) in files.enumerated() {
             if done % 50 == 0 { progress(done, files.count) }
             guard let (key, source) = try? await IndexRebuilder.key(of: file) else { continue }
-            if source == "attributes" { exact.insert(key) } else { approximate.append(key) }
+            found.files.append(ExistingFile(
+                relativePath: IndexRebuilder.relativePath(of: file, root: root), key: key, dateSource: source
+            ))
         }
         progress(files.count, files.count)
-        return (files.count, ImportedKeys(exact: exact, approximate: approximate))
+        return found
     }
 
-    public func index(_ destination: ResolvedDestination, progress: @escaping @Sendable (Int, Int) -> Void) async throws -> Int {
-        let result = try await IndexRebuilder().rebuild(destination: destination, progress: progress)
+    public func index(
+        _ destination: ResolvedDestination, known: [ExistingFile], progress: @escaping @Sendable (Int, Int) -> Void
+    ) async throws -> Int {
+        let result = try await IndexRebuilder().rebuild(destination: destination, known: known, progress: progress)
         return result.files - result.duplicateKeys
     }
 }

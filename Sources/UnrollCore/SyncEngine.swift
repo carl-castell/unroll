@@ -136,20 +136,19 @@ public struct SyncEngine: Sendable {
         }
 
         // Without an index, files already in the folder still count as imported.
-        var existingFiles = 0
+        var existingFiles = ExistingFiles()
         if meta == nil, let existing {
-            let found = await existing.keys(in: destination.root) { events(.existingFilesScanning(done: $0, total: $1)) }
-            if found.count > 0 {
-                existingFiles = found.count
-                importedKeys = found.keys
-                events(.existingFilesFound(count: found.count))
+            existingFiles = await existing.scan(in: destination.root) { events(.existingFilesScanning(done: $0, total: $1)) }
+            if existingFiles.count > 0 {
+                importedKeys = existingFiles.keys
+                events(.existingFilesFound(count: existingFiles.count))
             }
         }
 
         var result = PlanBuilder.plan(
             items: items, importedKeys: importedKeys, versions: task.versions, folderTemplate: task.folderTemplate
         )
-        result.summary.existingFiles = existingFiles
+        result.summary.existingFiles = existingFiles.count
         events(.comparisonDone(result.summary))
         return SyncPlan(
             taskID: task.id,
@@ -159,7 +158,8 @@ public struct SyncEngine: Sendable {
             items: result.items,
             unavailable: result.unavailable,
             summary: result.summary,
-            confirmation: ConfirmationPolicy.reason(for: task, index: meta, newItems: result.items.count)
+            confirmation: ConfirmationPolicy.reason(for: task, index: meta, newItems: result.items.count),
+            existingFiles: existingFiles.files
         )
     }
 
