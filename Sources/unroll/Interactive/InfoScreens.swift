@@ -162,14 +162,15 @@ struct SettingsScreen: Screen {
                 Choice("Back", .back),
             ]
             switch app.noora.menu("Settings", choices) {
+            // On/off options flip right away; the menu then shows the new value.
             case .photos:
-                settings.photosEnabled = app.noora.yesOrNoChoicePrompt(
-                    question: "Add files to Apple Photos for tasks that have it turned on?", defaultAnswer: settings.photosEnabled,
-                    description: "When off, no task adds to Photos. Files copied meanwhile are remembered and added on the first run after it's turned back on."
-                )
+                settings.photosEnabled.toggle()
+                if !settings.photosEnabled {
+                    app.noora.info("No task adds to Apple Photos now. Files copied meanwhile are added on the first run after you turn this back on.")
+                }
             case .template: settings.defaultFolderTemplate = Wizard.pickFolderTemplate(app, current: settings.defaultFolderTemplate)
             case .versions: settings.defaultVersions = Wizard.pickVersions(app, current: settings.defaultVersions)
-            case .notify: settings.defaultNotify = Wizard.askNotify(app, current: settings.defaultNotify)
+            case .notify: settings.defaultNotify.toggle()
             case .openConfig:
                 try? FileManager.default.createDirectory(at: app.store.directory, withIntermediateDirectories: true)
                 _ = try? Process.run(URL(filePath: "/usr/bin/open"), arguments: [app.store.directory.path])

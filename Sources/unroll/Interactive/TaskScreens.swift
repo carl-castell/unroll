@@ -87,12 +87,24 @@ struct EditTaskScreen: Screen {
                 task.folderTemplate = Wizard.pickFolderTemplate(app, current: task.folderTemplate)
             case .versions:
                 task.versions = Wizard.pickVersions(app, current: task.versions)
+            // On/off options flip right away; the menu then shows the new value.
             case .photos:
-                task.addToPhotos = Wizard.askAddToPhotos(app, current: task.addToPhotos)
+                task.addToPhotos.toggle()
+                if task.addToPhotos {
+                    app.noora.info(.alert("Add to Apple Photos is now on for \"\(task.name)\".", takeaways: [
+                        "Turn off \"Copy items to the Photos library\" in Photos → Settings → General.",
+                        "Files go into the library Photos has open. macOS asks once whether your terminal may control Photos.",
+                    ]))
+                }
             case .photosDuplicates:
-                task.photosChecksDuplicates = Wizard.askPhotosDuplicateCheck(app, current: task.photosChecksDuplicates)
+                task.photosChecksDuplicates.toggle()
+                if task.photosChecksDuplicates {
+                    app.noora.info("Photos will skip photos it already has. When it finds some, it asks and waits for your answer.")
+                } else {
+                    app.noora.warning(.alert("Photos won't check for duplicates.", takeaway: "Photos already in the library are added again."))
+                }
             case .notify:
-                task.notify = Wizard.askNotify(app, current: task.notify)
+                task.notify.toggle()
             case .back:
                 return .screen(TaskMoreScreen(taskID: task.id))
             }

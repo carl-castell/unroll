@@ -119,7 +119,8 @@ struct Run: AsyncParsableCommand {
                 return UnrollExit.confirmationRequired
             }
             renderer.plan(plan, listItems: false)
-            print("\n\(Self.question(for: reason, plan: plan, task: task)) [y/N] ", terminator: "")
+            let question = Self.question(for: reason, plan: plan, task: task)
+            print("\n\(question.reason)\n\(question.ask) [y/N] ", terminator: "")
             guard readLine()?.lowercased().hasPrefix("y") == true else {
                 await engine.close(plan)
                 renderer.note("Cancelled. Nothing was copied.")
@@ -173,14 +174,16 @@ struct Run: AsyncParsableCommand {
         try? store.saveLastUsedTask(task.id)
     }
 
-    static func question(for reason: ConfirmationReason, plan: SyncPlan, task: SyncTask) -> String {
-        let what = "Copy \(plan.items.count) files (\(Format.bytes(plan.items.reduce(0) { $0 + $1.item.size }))) "
+    /// Why the run asks, and the question itself, shown on separate lines.
+    static func question(for reason: ConfirmationReason, plan: SyncPlan, task: SyncTask) -> (reason: String, ask: String) {
+        let ask = "Copy \(plan.items.count) files (\(Format.bytes(plan.items.reduce(0) { $0 + $1.item.size }))) "
             + "from \"\(task.device.name)\" to \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))?"
-        return switch reason {
-        case .firstRun: "This is the first run of \"\(task.name)\". \(what)"
-        case .destinationOrDeviceChanged: "The task's device or destination changed. \(what)"
-        case .indexRebuilt: "The destination's index was rebuilt. \(what)"
-        case .indexEmpty: "The destination's index is empty. \(what)"
+        let why = switch reason {
+        case .firstRun: "This is the first run of \"\(task.name)\", so it asks once."
+        case .destinationOrDeviceChanged: "The task's device or destination changed, so it asks again."
+        case .indexRebuilt: "The destination's index was rebuilt, so it asks again."
+        case .indexEmpty: "The destination's index is empty, so everything would be copied."
         }
+        return (why, ask)
     }
 }
