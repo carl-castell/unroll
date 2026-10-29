@@ -26,6 +26,11 @@ public enum SyncEvent: Sendable {
     case listingStarted
     case listingProgress(percent: Int)
     case itemsListed(count: Int)
+    /// The destination has no index; files already in it are being read.
+    case existingFilesScanning(done: Int, total: Int)
+    case existingFilesFound(count: Int)
+    /// Before copying, files already in the destination are recorded in a new index.
+    case existingFilesIndexing(done: Int, total: Int)
     case comparisonDone(PlanSummary)
     case recovered(RecoveryResult)
     case transferStarted(totalItems: Int, totalBytes: Int64)
@@ -47,17 +52,21 @@ public struct SyncEngine: Sendable {
     let destinations: any DestinationResolving
     let indexes: any IndexProviding
     let writers: any DestinationOpening
+    let existing: (any ExistingFilesScanning)?
 
+    /// - Parameter existing: recognizes files already in a destination that has no index yet.
     public init(
         devices: any DeviceBrowsing,
         destinations: any DestinationResolving,
         indexes: any IndexProviding,
-        writers: any DestinationOpening
+        writers: any DestinationOpening,
+        existing: (any ExistingFilesScanning)? = nil
     ) {
         self.devices = devices
         self.destinations = destinations
         self.indexes = indexes
         self.writers = writers
+        self.existing = existing
     }
 
     /// Checks the destination, then the device, lists the device and compares against the index.
@@ -115,7 +124,7 @@ public struct SyncEngine: Sendable {
         }
         events(.itemsListed(count: items.count))
 
-        let importedKeys: ImportedKeys
+        var importedKeys: ImportedKeys
         let meta: IndexMeta?
         do {
             let index = try indexes.existingIndex(at: destination.root)
@@ -126,9 +135,21 @@ public struct SyncEngine: Sendable {
             throw .indexUnreadable(String(describing: error))
         }
 
-        let result = PlanBuilder.plan(
+        // Without an index, files already in the folder still count as imported.
+        var existingFiles = 0
+        if meta == nil, let existing {
+            let found = await existing.keys(in: destination.root) { events(.existingFilesScanning(done: $0, total: $1)) }
+            if found.count > 0 {
+                existingFiles = found.count
+                importedKeys = found.keys
+                events(.existingFilesFound(count: found.count))
+            }
+        }
+
+        var result = PlanBuilder.plan(
             items: items, importedKeys: importedKeys, versions: task.versions, folderTemplate: task.folderTemplate
         )
+        result.summary.existingFiles = existingFiles
         events(.comparisonDone(result.summary))
         return SyncPlan(
             taskID: task.id,

@@ -77,7 +77,7 @@ public struct IndexRebuilder: Sendable {
 
     /// Regular files in the destination, skipping hidden files, unroll's own `.unroll/` folder, and
     /// the inside of packages such as a `.photoslibrary` kept in the same folder.
-    static func mediaFiles(in root: URL) -> [URL] {
+    public static func mediaFiles(in root: URL) -> [URL] {
         let enumerator = FileManager.default.enumerator(
             at: root, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]
         )
@@ -89,9 +89,28 @@ public struct IndexRebuilder: Sendable {
     private static func describe(
         _ file: URL, root: URL, imageBases: Set<String>
     ) async throws -> (item: IndexedItem, dateSource: String) {
+        let (key, source) = try await key(of: file)
+        let filename = key.filename
+        let base = root.resolvingSymlinksInPath().path
+        let relative = String(file.resolvingSymlinksInPath().path.dropFirst(base.count + 1))
+        let item = IndexedItem(
+            key: key,
+            relativePath: relative,
+            sha256: try hash(of: file),
+            role: role(of: file, filename: filename, imageBases: imageBases),
+            assetID: nil,
+            deviceID: attribute(UnrollAttribute.deviceID, of: file).map(DeviceID.init),
+            originalFilename: nil,
+            importedAt: Date()
+        )
+        return (item, source)
+    }
+
+    /// A file's key: name and capture time from unroll's attributes, else from EXIF or QuickTime
+    /// metadata, else the file date. Also returns where the time came from.
+    static func key(of file: URL) async throws -> (key: ItemKey, dateSource: String) {
         let values = try file.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
         let filename = attribute(UnrollAttribute.filename, of: file) ?? withoutCollisionSuffix(file.lastPathComponent)
-
         let captureDate: LocalTimestamp
         let source: String
         if let stored = attribute(UnrollAttribute.captureDate, of: file).flatMap(LocalTimestamp.init(parsing:)) {
@@ -102,20 +121,7 @@ public struct IndexRebuilder: Sendable {
             let date = values.contentModificationDate ?? Date(timeIntervalSince1970: 0)
             (captureDate, source) = (LocalTimestamp(date: date, interpretedIn: .current), "file-date")
         }
-
-        let base = root.resolvingSymlinksInPath().path
-        let relative = String(file.resolvingSymlinksInPath().path.dropFirst(base.count + 1))
-        let item = IndexedItem(
-            key: ItemKey(captureDate: captureDate, size: Int64(values.fileSize ?? 0), filename: filename),
-            relativePath: relative,
-            sha256: try hash(of: file),
-            role: role(of: file, filename: filename, imageBases: imageBases),
-            assetID: nil,
-            deviceID: attribute(UnrollAttribute.deviceID, of: file).map(DeviceID.init),
-            originalFilename: nil,
-            importedAt: Date()
-        )
-        return (item, source)
+        return (ItemKey(captureDate: captureDate, size: Int64(values.fileSize ?? 0), filename: filename), source)
     }
 
     /// The capture clock time from EXIF DateTimeOriginal (photos) or the QuickTime creation date (videos).
@@ -180,5 +186,28 @@ public struct IndexRebuilder: Sendable {
             hasher.update(data: chunk)
         }
         return Data(hasher.finalize())
+    }
+}
+
+/// Recognizes files already in a destination without an index, using the same rules as a rebuild.
+public struct ExistingFilesScanner: ExistingFilesScanning {
+    public init() {}
+
+    public func keys(in root: URL, progress: @escaping @Sendable (Int, Int) -> Void) async -> (count: Int, keys: ImportedKeys) {
+        let files = IndexRebuilder.mediaFiles(in: root)
+        var exact = Set<ItemKey>()
+        var approximate: [ItemKey] = []
+        for (done, file) in files.enumerated() {
+            if done % 50 == 0 { progress(done, files.count) }
+            guard let (key, source) = try? await IndexRebuilder.key(of: file) else { continue }
+            if source == "attributes" { exact.insert(key) } else { approximate.append(key) }
+        }
+        progress(files.count, files.count)
+        return (files.count, ImportedKeys(exact: exact, approximate: approximate))
+    }
+
+    public func index(_ destination: ResolvedDestination, progress: @escaping @Sendable (Int, Int) -> Void) async throws -> Int {
+        let result = try await IndexRebuilder().rebuild(destination: destination, progress: progress)
+        return result.files - result.duplicateKeys
     }
 }

@@ -19,6 +19,17 @@ extension SyncEngine {
             throw .confirmationRequired(reason)
         }
         let start = ContinuousClock.now
+        // Record files already in the folder first, so they aren't copied again or collide.
+        let hasIndex = ((try? indexes.existingIndex(at: plan.destination.root)) ?? nil) != nil
+        if plan.summary.existingFiles > 0, let existing, !hasIndex {
+            do {
+                _ = try await existing.index(plan.destination) { events(.existingFilesIndexing(done: $0, total: $1)) }
+            } catch let error as SyncError {
+                throw error
+            } catch {
+                throw .indexUnreadable(String(describing: error))
+            }
+        }
         let writer: any DestinationWriter
         do {
             writer = try writers.openForWriting(plan.destination)

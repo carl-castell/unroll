@@ -154,6 +154,41 @@ struct TransferTests {
         #expect(try index().pendingTransfers().isEmpty)
     }
 
+    /// Photos copied earlier without unroll (e.g. with Image Capture): no index, no attributes.
+    @Test func filesAlreadyInFolderWithoutIndexAreNotCopiedAgain() async throws {
+        let existing = item("1", "IMG_1.HEIC", date: june)
+        let folder = root.appending(path: "Imported with Image Capture")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appending(path: "IMG_1.HEIC")
+        try FakeDeviceSession.bytes(for: existing).write(to: file)
+        // Image Capture sets the file date to the capture time; there's no EXIF in the fake bytes.
+        try FileManager.default.setAttributes(
+            [.modificationDate: existing.captureDate!.date(in: .current)], ofItemAtPath: file.path
+        )
+        session.items = [existing, item("2", "IMG_2.HEIC", date: june + 60)]
+        let destination = ResolvedDestination(root: root, volumeName: "Test", kind: .external, format: "APFS", isReadOnly: false)
+        let engine = SyncEngine(
+            devices: FakeDeviceBrowser(devices: [phone], session: session), destinations: FakeDestinations(resolved: destination),
+            indexes: SQLiteIndexProvider(), writers: DestinationStoreOpener(), existing: ExistingFilesScanner()
+        )
+
+        let plan = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
+        #expect(plan.summary.existingFiles == 1)
+        #expect(plan.items.map(\.item.filename) == ["IMG_2.HEIC"])
+        // A dry run writes nothing.
+        #expect(!FileManager.default.fileExists(atPath: root.appending(path: ".unroll").path))
+
+        let summary = try await engine.execute(plan, confirmed: true, events: { _ in })
+        await engine.close(plan)
+        #expect(summary.imported == 1)
+        #expect(try files() == ["2026/2026-06/IMG_2.HEIC", "Imported with Image Capture/IMG_1.HEIC"])
+        // Both are now in the index; the next run finds nothing new.
+        #expect(try index().importedKeys().count == 2)
+        let next = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
+        #expect(next.items.isEmpty)
+        await engine.close(next)
+    }
+
     @Test func rebuiltIndexRecognizesEverythingAgain() async throws {
         let folder = root.appending(path: "2026/2026-06")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

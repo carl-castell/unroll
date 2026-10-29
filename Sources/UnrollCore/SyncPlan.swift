@@ -27,6 +27,8 @@ public struct PlanSummary: Sendable, Equatable {
     public let months: [MonthSummary]
     /// Target folders, sorted.
     public let folders: [String]
+    /// Files found in a destination without an index; they are indexed before copying.
+    public var existingFiles = 0
 }
 
 /// What a run would copy: the new items after comparing against the index.
