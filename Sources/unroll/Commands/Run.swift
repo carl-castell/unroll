@@ -20,6 +20,9 @@ struct Run: AsyncParsableCommand {
     @Flag(help: "Check and compare only. Nothing is copied or written.")
     var dryRun = false
 
+    @Flag(name: .shortAndLong, help: "Don't ask before the first run of a task (or after its device, destination or index changed).")
+    var yes = false
+
     @Flag(help: "With --dry-run, list every new item.")
     var list = false
 
@@ -63,16 +66,31 @@ struct Run: AsyncParsableCommand {
             throw plan.summary.unavailable > 0 ? UnrollExit.itemsFailed : UnrollExit.success
         }
 
+        if let reason = plan.confirmation, !yes {
+            guard Terminal.isInteractive else {
+                await engine.close(plan)
+                printError(SyncError.confirmationRequired(reason).message)
+                throw UnrollExit.confirmationRequired
+            }
+            renderer.printPlan(plan, listItems: false)
+            print("\n\(Self.question(for: reason, plan: plan, task: task)) [y/N] ", terminator: "")
+            guard readLine()?.lowercased().hasPrefix("y") == true else {
+                await engine.close(plan)
+                print("Cancelled. Nothing was copied.")
+                return
+            }
+        }
+
         let summary: SyncSummary
         do {
-            summary = try await engine.execute(plan, events: { renderer.handle($0) })
+            summary = try await engine.execute(plan, confirmed: true, events: { renderer.handle($0) })
         } catch {
             await engine.close(plan)
             printError(error.message)
             throw error.exitCode
         }
         await engine.close(plan)
-        try saveLastRun(of: task)
+        try saveRun(of: task, indexID: summary.indexID)
 
         if let stopped = summary.stoppedBecause {
             printError(stopped.message + " The run was stopped; start it again to continue.")
@@ -83,12 +101,27 @@ struct Run: AsyncParsableCommand {
         }
     }
 
-    private func saveLastRun(of task: SyncTask) throws {
+    /// Records the run and what it was confirmed for, so later runs don't ask again.
+    private func saveRun(of task: SyncTask, indexID: String?) throws {
         let store = TaskStore()
         var tasks = try store.loadTasks()
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[index].lastRun = Date()
-            try store.saveTasks(tasks)
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        tasks[index].lastRun = Date()
+        if let indexID {
+            tasks[index].confirmation = ConfirmationSnapshot(deviceID: task.device.id, destination: task.destination, indexID: indexID)
+        }
+        try store.saveTasks(tasks)
+        try? store.saveLastUsedTask(task.id)
+    }
+
+    static func question(for reason: ConfirmationReason, plan: SyncPlan, task: SyncTask) -> String {
+        let what = "Copy \(plan.items.count) files (\(Format.bytes(plan.items.reduce(0) { $0 + $1.item.size }))) "
+            + "from \"\(task.device.name)\" to \(VolumeResolver.displayPath(plan.destinationRoot))?"
+        return switch reason {
+        case .firstRun: "This is the first run of \"\(task.name)\". \(what)"
+        case .destinationOrDeviceChanged: "The task's device or destination changed. \(what)"
+        case .indexRebuilt: "The destination's index was rebuilt. \(what)"
+        case .indexEmpty: "The destination's index is empty. \(what)"
         }
     }
 }

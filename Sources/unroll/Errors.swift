@@ -29,6 +29,8 @@ extension SyncError {
             "\"\(name)\" is locked or doesn't trust this Mac. Unlock it, tap Trust if asked, and try again."
         case .deviceFailed(let reason):
             "Couldn't read the device: \(reason)"
+        case .confirmationRequired(let reason):
+            "This run needs confirmation (\(reason.explanation)). Run it once in a terminal, or pass --yes."
         case .indexUnreadable(let reason):
             "The destination's index can't be read: \(reason). `unroll rebuild-index` can recreate it."
         }
@@ -40,6 +42,7 @@ extension SyncError {
              .notEnoughSpace, .indexUnreadable:
             UnrollExit.destinationMissing
         case .deviceNotConnected, .deviceLocked, .deviceFailed: UnrollExit.deviceUnavailable
+        case .confirmationRequired: UnrollExit.confirmationRequired
         }
     }
 }
@@ -60,4 +63,15 @@ func loadTask(_ query: String, from store: TaskStore) throws -> SyncTask {
         throw UnrollExit.invalidTask
     }
     return task
+}
+
+extension ConfirmationReason {
+    var explanation: String {
+        switch self {
+        case .firstRun: "first run of this task"
+        case .destinationOrDeviceChanged: "the task's device or destination changed"
+        case .indexRebuilt: "the destination's index was rebuilt"
+        case .indexEmpty: "the destination's index is empty"
+        }
+    }
 }
