@@ -66,7 +66,7 @@ public enum PlanBuilder {
     /// Selects the items to copy: wanted by the version policy, available, and not yet in the index.
     public static func plan(
         items: [DeviceItem],
-        importedKeys: Set<ItemKey>,
+        importedKeys: ImportedKeys,
         versions: VersionPolicy,
         folderTemplate: FolderTemplate
     ) -> (items: [PlannedItem], unavailable: [DeviceItem], summary: PlanSummary) {

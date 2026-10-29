@@ -17,6 +17,18 @@ public struct LocalTimestamp: Hashable, Comparable, Sendable, Codable, CustomStr
         secondsSince1970 = Int64((date.timeIntervalSince1970 + offset).rounded(.down))
     }
 
+    /// Parses "2026-06-02 11:46:26" and the EXIF form "2026:06:02 11:46:26"; anything after the
+    /// seconds (fractions, a "+04:00" offset) is ignored, because the clock time is what counts.
+    public init?(parsing text: String) {
+        let numbers = text.split(whereSeparator: { !$0.isNumber }).prefix(6).compactMap { Int($0) }
+        guard numbers.count == 6, (1...12).contains(numbers[1]), (1...31).contains(numbers[2]) else { return nil }
+        let components = DateComponents(
+            year: numbers[0], month: numbers[1], day: numbers[2], hour: numbers[3], minute: numbers[4], second: numbers[5]
+        )
+        guard let date = Self.calendar.date(from: components) else { return nil }
+        secondsSince1970 = Int64(date.timeIntervalSince1970)
+    }
+
     /// The instant this clock time denotes in `timeZone`.
     public func date(in timeZone: TimeZone) -> Date {
         let asUTC = Date(timeIntervalSince1970: TimeInterval(secondsSince1970))

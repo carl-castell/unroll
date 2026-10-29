@@ -91,7 +91,7 @@ public struct SyncEngine: Sendable {
         }
         events(.itemsListed(count: items.count))
 
-        let importedKeys: Set<ItemKey>
+        let importedKeys: ImportedKeys
         do {
             importedKeys = try indexes.existingIndex(at: destination.root)?.importedKeys() ?? []
         } catch {

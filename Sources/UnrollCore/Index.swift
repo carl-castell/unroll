@@ -3,7 +3,7 @@ import Foundation
 /// The import index stored with the files in the destination.
 public protocol ImportIndex: Sendable {
     /// Keys of everything already imported, including aliases of content duplicates.
-    func importedKeys() throws -> Set<ItemKey>
+    func importedKeys() throws -> ImportedKeys
     func meta() throws -> IndexMeta
 }
 

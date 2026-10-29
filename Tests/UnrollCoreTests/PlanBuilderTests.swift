@@ -13,7 +13,7 @@ struct PlanBuilderTests {
         item("5", "IMG_E0783.MOV", kind: .video, role: .livePhotoVideo, asset: "A", parent: "4"),
     ]
 
-    func names(_ items: [DeviceItem], _ versions: VersionPolicy, imported: Set<ItemKey> = []) -> [String] {
+    func names(_ items: [DeviceItem], _ versions: VersionPolicy, imported: ImportedKeys = []) -> [String] {
         PlanBuilder.plan(items: items, importedKeys: imported, versions: versions, folderTemplate: .default)
             .items.map(\.item.filename)
     }
@@ -37,7 +37,7 @@ struct PlanBuilderTests {
 
     @Test func skipsAlreadyImportedKeys() {
         let items = [item("1", "IMG_1.HEIC"), item("2", "IMG_2.HEIC")]
-        let imported: Set = [ItemKey(items[0])!]
+        let imported: ImportedKeys = [ItemKey(items[0])!]
         let plan = PlanBuilder.plan(items: items, importedKeys: imported, versions: .original, folderTemplate: .default)
         #expect(plan.items.map(\.item.filename) == ["IMG_2.HEIC"])
         #expect(plan.summary.alreadyImported == 1)
@@ -72,6 +72,41 @@ struct PlanBuilderTests {
         ])
         #expect(summary.folders == ["2026/2026-02", "2026/2026-06"])
         #expect(summary.newBytes == 16)
+    }
+}
+
+struct ImportedKeysTests {
+    let key = ItemKey(captureDate: LocalTimestamp(secondsSince1970: 1_000), size: 10, filename: "IMG_1.MOV")
+
+    func shifted(_ seconds: Int64) -> ItemKey {
+        ItemKey(captureDate: LocalTimestamp(secondsSince1970: 1_000 + seconds), size: 10, filename: "IMG_1.MOV")
+    }
+
+    @Test func exactKeysMatchOnlyExactly() {
+        let keys: ImportedKeys = [key]
+        #expect(keys.contains(key))
+        #expect(!keys.contains(shifted(1)))
+    }
+
+    /// Rebuilt video times can differ from the device's by a second or two.
+    @Test func approximateKeysMatchWithinTolerance() {
+        let keys = ImportedKeys(approximate: [key])
+        #expect(keys.contains(shifted(-2)))
+        #expect(keys.contains(shifted(2)))
+        #expect(!keys.contains(shifted(3)))
+        let otherSize = ItemKey(captureDate: key.captureDate, size: 11, filename: "IMG_1.MOV")
+        #expect(!keys.contains(otherSize))
+    }
+}
+
+struct LocalTimestampParsingTests {
+    @Test func parsesStoredAndExifForms() {
+        #expect(LocalTimestamp(parsing: "2026-06-02 11:46:26")?.description == "2026-06-02 11:46:26")
+        #expect(LocalTimestamp(parsing: "2026:06:02 11:46:26")?.description == "2026-06-02 11:46:26")
+        // QuickTime: the offset is ignored, the clock time kept.
+        #expect(LocalTimestamp(parsing: "2026-06-02T11:46:26+0400")?.description == "2026-06-02 11:46:26")
+        #expect(LocalTimestamp(parsing: "not a date") == nil)
+        #expect(LocalTimestamp(parsing: "2026-13-02 11:46:26") == nil)
     }
 }
 

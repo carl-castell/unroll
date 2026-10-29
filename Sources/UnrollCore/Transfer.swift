@@ -21,7 +21,7 @@ extension SyncEngine {
 
         var summary = SyncSummary()
         summary.unavailable = plan.unavailable.count
-        let alreadyImported: Set<ItemKey>
+        let alreadyImported: ImportedKeys
         do {
             summary.recovered = try writer.recoverInterrupted()
             // Re-read under the destination lock: recovery or another run may have added items since planning.

@@ -115,7 +115,7 @@ public struct FakeIndex: ImportIndex {
         self.keys = keys
     }
 
-    public func importedKeys() throws -> Set<ItemKey> { keys }
+    public func importedKeys() throws -> ImportedKeys { ImportedKeys(exact: keys) }
     public func meta() throws -> IndexMeta { IndexMeta(indexID: "fake", itemCount: keys.count) }
 }
 

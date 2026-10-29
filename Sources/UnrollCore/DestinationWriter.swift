@@ -12,7 +12,7 @@ public protocol DestinationWriter: Sendable {
 
     /// Commits transfers that were moved into place but not recorded, and discards the rest.
     func recoverInterrupted() throws -> RecoveryResult
-    func importedKeys() throws -> Set<ItemKey>
+    func importedKeys() throws -> ImportedKeys
     func meta() throws -> IndexMeta
 
     func beginTransfer(tempName: String, key: ItemKey) throws
