@@ -1,6 +1,6 @@
 import ArgumentParser
 
-let unrollVersion = "0.2.0-dev"
+let unrollVersion = "0.2.0"
 
 struct Unroll: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
