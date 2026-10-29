@@ -164,6 +164,7 @@ enum TransferFlow {
         }
 
         let tracker = TransferTracker(totalFiles: plan.items.count, totalBytes: totalBytes)
+        let log = RunLog(task: task, dryRun: false)
         let summary: SyncSummary
         do {
             summary = try await app.noora.progressStep(
@@ -174,6 +175,7 @@ enum TransferFlow {
             ) { @Sendable update in
                 let work = Task {
                     try await engine.execute(plan, confirmed: true) { event in
+                        log?.record(event)
                         if let line = tracker.handle(event) { update(line) }
                     }
                 }
@@ -188,12 +190,13 @@ enum TransferFlow {
             }
         } catch {
             await engine.close(plan)
+            log?.write("failed: \((error as? SyncError)?.message ?? String(describing: error))")
             app.show(error)
             return .mainMenu
         }
         await engine.close(plan)
         record(task: task, summary: summary, app: app)
-        showSummary(summary, plan: plan, app: app)
+        showSummary(summary, plan: plan, log: log?.url, app: app)
         return .mainMenu
     }
 
@@ -216,7 +219,7 @@ enum TransferFlow {
         try? app.save(current)
     }
 
-    private static func showSummary(_ summary: SyncSummary, plan: SyncPlan, app: AppContext) {
+    private static func showSummary(_ summary: SyncSummary, plan: SyncPlan, log: URL?, app: AppContext) {
         var details: [TerminalText] = ["Into \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))"]
         if summary.duplicates > 0 { details.append("\(summary.duplicates) identical to files already there; not copied again") }
         if summary.unavailable > 0 { details.append("\(summary.unavailable) not available on the device; see Help → Troubleshooting") }
@@ -225,6 +228,7 @@ enum TransferFlow {
             details.append("\(failure.filename): \(PlainRenderer.describe(failure.reason))")
         }
         if summary.failed.count > 5 { details.append("… and \(summary.failed.count - 5) more failures") }
+        if let log { details.append("Log: \(Format.path(log))") }
 
         let headline = "Imported \(summary.imported) files (\(Format.bytes(summary.bytes)))"
         if let stopped = summary.stoppedBecause {
@@ -232,7 +236,10 @@ enum TransferFlow {
         } else if !summary.failed.isEmpty {
             app.noora.error(.alert("\(headline), \(summary.failed.count) failed", takeaways: details))
         } else if summary.cancelled {
-            app.noora.warning(.alert("\(headline). Stopped at your request.", takeaway: details.dropFirst().first))
+            app.noora.warning(.alert(
+                "\(headline). Stopped at your request.",
+                takeaway: "\(summary.notAttempted) not copied yet; run the task again to continue"
+            ))
         } else {
             app.noora.success(.alert("\(headline)", takeaways: details))
         }
