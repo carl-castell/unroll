@@ -162,7 +162,7 @@ enum TransferFlow {
                 "To: \(Format.destination(plan.destinationRoot, volumeName: plan.destination.volumeName))",
                 "\(plan.items.count) files, \(Format.bytes(totalBytes))",
             ]))
-            guard app.noora.yesOrNoChoicePrompt(question: "Copy them now?", defaultAnswer: true) else {
+            guard app.noora.confirm("Copy them now?", default: true) else {
                 await engine.close(plan)
                 app.noora.info("Nothing was copied.")
                 return .mainMenu

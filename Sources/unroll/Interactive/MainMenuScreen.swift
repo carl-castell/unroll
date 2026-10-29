@@ -99,9 +99,9 @@ struct TaskMoreScreen: Screen {
     }
 
     private func deleteTask(_ task: SyncTask, app: AppContext) -> Next {
-        let confirmed = app.noora.yesOrNoChoicePrompt(
-            question: "Delete \"\(task.name)\"?", defaultAnswer: false,
-            description: "Only the task is removed. Files and the index on the destination are kept."
+        let confirmed = app.noora.confirm(
+            "Delete \"\(task.name)\"?", default: false,
+            details: "Only the task is removed. Files and the index on the destination are kept."
         )
         guard confirmed else { return .screen(TaskMoreScreen(taskID: task.id)) }
         do {

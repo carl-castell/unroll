@@ -64,9 +64,9 @@ struct RebuildScreen: Screen {
             return .screen(MainMenuScreen(taskID: task.id))
         }
         let path = Format.destination(destination.root, volumeName: destination.volumeName)
-        let confirmed = app.noora.yesOrNoChoicePrompt(
-            question: "Rebuild the index of \"\(task.name)\" from the files in \(path)?", defaultAnswer: false,
-            description: "Files are only read, never changed. The run history is reset and the next run asks once."
+        let confirmed = app.noora.confirm(
+            "Rebuild the index of \"\(task.name)\" from the files in \(path)?", default: false,
+            details: "Files are only read, never changed. The run history is reset and the next run asks once."
         )
         guard confirmed else { return .screen(TaskMoreScreen(taskID: task.id)) }
 

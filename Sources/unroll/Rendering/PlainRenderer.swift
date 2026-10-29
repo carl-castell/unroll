@@ -194,6 +194,35 @@ enum Format {
         Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
     }
 
+    /// The terminal's width in columns, or 80 when it can't be read.
+    static func terminalWidth() -> Int {
+        var size = winsize()
+        guard ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0, size.ws_col > 20 else { return 80 }
+        return Int(size.ws_col)
+    }
+
+    /// Breaks text into lines of at most `width` characters at spaces. Continuation lines are
+    /// indented by `indent` spaces, to line up with a first line that the caller indents.
+    static func wrapped(_ text: String, width: Int, indent: Int = 0) -> String {
+        let limit = max(width - indent, 20)
+        var lines: [String] = []
+        for paragraph in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            var line = ""
+            for word in paragraph.split(separator: " ") {
+                if line.isEmpty {
+                    line = String(word)
+                } else if line.count + 1 + word.count <= limit {
+                    line += " \(word)"
+                } else {
+                    lines.append(line)
+                    line = String(word)
+                }
+            }
+            lines.append(line)
+        }
+        return lines.joined(separator: "\n" + String(repeating: " ", count: indent))
+    }
+
     /// "~/unroll-test", "/Volumes/Photos-SSD/Photos".
     static func path(_ url: URL) -> String {
         let path = VolumeResolver.displayPath(url)

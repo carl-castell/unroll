@@ -19,7 +19,7 @@ enum Next {
 /// Shared services for all screens.
 @MainActor
 final class AppContext {
-    let noora = Noora()
+    let noora = Noora(content: .unroll)
     let store = TaskStore()
     let resolver = VolumeResolver()
     let browser = ICCDeviceBrowser()
@@ -109,6 +109,37 @@ struct Choice<Action: Equatable>: CustomStringConvertible, Equatable {
     }
 }
 
+extension Content {
+    /// Noora's texts, with one plain heading above an alert's detail lines instead of
+    /// "Takeaways" or "Sorry this didn't work. Here's what to try next".
+    static let unroll: Content = {
+        let base = Content.default
+        return Content(
+            errorAlertTitle: base.errorAlertTitle,
+            errorAlertRecommendedTitle: "Details",
+            warningAlertTitle: base.warningAlertTitle,
+            warningAlertRecommendedTitle: "Details",
+            successAlertTitle: base.successAlertTitle,
+            successAlertRecommendedTitle: "Details",
+            infoAlertTitle: base.infoAlertTitle,
+            infoAlertRecommendedTitle: "Details",
+            choicePromptFilterTitle: base.choicePromptFilterTitle,
+            choicePromptInstructionWithoutFilter: base.choicePromptInstructionWithoutFilter,
+            choicePromptInstructionWithFilter: base.choicePromptInstructionWithFilter,
+            choicePromptInstructionIsFiltering: base.choicePromptInstructionIsFiltering,
+            multipleChoicePromptFilterTitle: base.multipleChoicePromptFilterTitle,
+            multipleChoicePromptErrorTitle: base.multipleChoicePromptErrorTitle,
+            multipleChoicePromptInstructionWithoutFilter: base.multipleChoicePromptInstructionWithoutFilter,
+            multipleChoicePromptInstructionWithFilter: base.multipleChoicePromptInstructionWithFilter,
+            multipleChoicePromptInstructionIsFiltering: base.multipleChoicePromptInstructionIsFiltering,
+            textPromptValidationErrorsTitle: base.textPromptValidationErrorsTitle,
+            yesOrNoChoicePromptInstruction: base.yesOrNoChoicePromptInstruction,
+            yesOrNoChoicePromptPositiveText: base.yesOrNoChoicePromptPositiveText,
+            yesOrNoChoicePromptNegativeText: base.yesOrNoChoicePromptNegativeText
+        )
+    }()
+}
+
 extension Noorable {
     /// A single-choice menu that never picks an option on its own.
     func menu<Action: Equatable>(
@@ -118,6 +149,18 @@ extension Noorable {
             title: title, question: question, options: choices,
             filterMode: filterable ? .toggleable : .disabled, autoselectSingleChoice: false
         ).action
+    }
+
+    /// A yes/no question. Text is wrapped to the terminal width first: Noora redraws the prompt by
+    /// erasing one row per line, so a line the terminal wraps on its own would leave rows behind.
+    func confirm(_ question: String, default answer: Bool, details: String? = nil) -> Bool {
+        let width = Format.terminalWidth()
+        // The question line also holds " Yes (y)  /  No (n) " and a two-space indent.
+        return yesOrNoChoicePrompt(
+            question: "\(Format.wrapped(question, width: width - 24, indent: 2))",
+            defaultAnswer: answer,
+            description: details.map { "\(Format.wrapped($0, width: width - 2, indent: 2))" }
+        )
     }
 
     /// Waits for Enter, so a screen's output stays visible until the user is done reading.

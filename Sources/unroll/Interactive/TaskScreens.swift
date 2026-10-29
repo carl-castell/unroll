@@ -30,7 +30,7 @@ struct NewTaskScreen: Screen {
             photosChecksDuplicates: photosChecksDuplicates, notify: notify
         )
         app.noora.info(.alert("New task \"\(name)\"", takeaways: Wizard.describe(task, folder: folder)))
-        guard app.noora.yesOrNoChoicePrompt(question: "Save this task?", defaultAnswer: true) else {
+        guard app.noora.confirm("Save this task?", default: true) else {
             app.noora.info("The task wasn't saved.")
             return .mainMenu
         }
@@ -373,23 +373,23 @@ enum Wizard {
     }
 
     static func askAddToPhotos(_ app: AppContext, current: Bool) -> Bool {
-        app.noora.yesOrNoChoicePrompt(
-            question: "Add new files to Apple Photos as referenced files?", defaultAnswer: current,
-            description: "After each sync, new files are added to Photos without copying them into its library. Turn off \"Copy items to the Photos library\" in Photos → Settings → General first. macOS asks once whether your terminal app may control Photos."
+        app.noora.confirm(
+            "Also add new files to Apple Photos?", default: current,
+            details: "They stay in this folder; Photos only references them. First turn off \"Copy items to the Photos library\" in Photos → Settings → General."
         )
     }
 
     static func askPhotosDuplicateCheck(_ app: AppContext, current: Bool) -> Bool {
-        app.noora.yesOrNoChoicePrompt(
-            question: "Let Photos check for photos it already has?", defaultAnswer: current,
-            description: "Recommended if your library already has photos from this iPhone. When Photos finds duplicates, it asks what to do and waits for your answer, also in runs from Shortcuts. Without the check, those photos are added again."
+        app.noora.confirm(
+            "Let Photos skip photos it already has?", default: current,
+            details: "Recommended if your library already has photos from this iPhone. When Photos finds some, it asks and waits for your answer."
         )
     }
 
     static func askNotify(_ app: AppContext, current: Bool) -> Bool {
-        app.noora.yesOrNoChoicePrompt(
-            question: "Show a notification when a sync finishes?", defaultAnswer: current,
-            description: "macOS may ask to allow notifications from Script Editor, which shows them for unroll."
+        app.noora.confirm(
+            "Show a notification when a sync finishes?", default: current,
+            details: "macOS may ask once to allow notifications from Script Editor, which shows them for unroll."
         )
     }
 
