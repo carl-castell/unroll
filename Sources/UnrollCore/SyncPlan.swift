@@ -33,10 +33,33 @@ public struct PlanSummary: Sendable, Equatable {
 public struct SyncPlan: Sendable {
     public let taskID: UUID
     public let deviceID: DeviceID
-    public let destinationRoot: URL
+    public let destination: ResolvedDestination
+    /// The session the items were listed in; their IDs are only valid within it.
+    let session: any DeviceSession
     public let items: [PlannedItem]
     public let unavailable: [DeviceItem]
     public let summary: PlanSummary
+
+    public var destinationRoot: URL { destination.root }
+
+    /// Keeps the first `count` items, counting a photo and its attached files (Live Photo video,
+    /// edit data) as one, so pairs aren't split.
+    public func limited(to count: Int) -> SyncPlan {
+        let ids = Set(items.map(\.item.deviceItemID))
+        var kept: [PlannedItem] = []
+        var primaries = 0
+        for entry in items {
+            if entry.item.parentItemID.map({ !ids.contains($0) }) ?? true {
+                guard primaries < count else { break }
+                primaries += 1
+            }
+            kept.append(entry)
+        }
+        return SyncPlan(
+            taskID: taskID, deviceID: deviceID, destination: destination, session: session,
+            items: kept, unavailable: unavailable, summary: summary
+        )
+    }
 }
 
 public enum PlanBuilder {

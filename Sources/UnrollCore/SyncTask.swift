@@ -101,13 +101,17 @@ public struct ResolvedDestination: Sendable, Equatable {
     public let kind: VolumeKind
     public let format: String?
     public let isReadOnly: Bool
+    public let availableBytes: Int64?
 
-    public init(root: URL, volumeName: String, kind: VolumeKind, format: String?, isReadOnly: Bool) {
+    public init(
+        root: URL, volumeName: String, kind: VolumeKind, format: String?, isReadOnly: Bool, availableBytes: Int64? = nil
+    ) {
         self.root = root
         self.volumeName = volumeName
         self.kind = kind
         self.format = format
         self.isReadOnly = isReadOnly
+        self.availableBytes = availableBytes
     }
 }
 

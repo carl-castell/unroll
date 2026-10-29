@@ -17,6 +17,12 @@ public struct LocalTimestamp: Hashable, Comparable, Sendable, Codable, CustomStr
         secondsSince1970 = Int64((date.timeIntervalSince1970 + offset).rounded(.down))
     }
 
+    /// The instant this clock time denotes in `timeZone`.
+    public func date(in timeZone: TimeZone) -> Date {
+        let asUTC = Date(timeIntervalSince1970: TimeInterval(secondsSince1970))
+        return asUTC.addingTimeInterval(-TimeInterval(timeZone.secondsFromGMT(for: asUTC)))
+    }
+
     /// Clock time components: year, month, day, hour, minute, second.
     public var components: DateComponents {
         Self.calendar.dateComponents(

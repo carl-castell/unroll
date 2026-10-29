@@ -7,6 +7,9 @@ public enum Check: String, Sendable {
 public enum SyncError: Error, Sendable, Equatable {
     case destinationNotConnected(volumeName: String)
     case destinationReadOnly(volumeName: String)
+    case destinationBusy
+    case destinationUnwritable(String)
+    case notEnoughSpace(needed: Int64, available: Int64)
     case deviceNotConnected(name: String)
     case deviceLocked(name: String)
     case deviceFailed(String)
@@ -22,23 +25,38 @@ public enum SyncEvent: Sendable {
     case listingProgress(percent: Int)
     case itemsListed(count: Int)
     case comparisonDone(PlanSummary)
+    case recovered(RecoveryResult)
+    case transferStarted(totalItems: Int, totalBytes: Int64)
+    case fileStarted(PlannedItem, index: Int)
+    /// Bytes received so far for this file.
+    case fileProgress(PlannedItem, bytes: Int64)
+    case fileDone(PlannedItem, FileOutcome)
+    case fileFailed(PlannedItem, ItemFailure)
+    case finished(SyncSummary)
 }
 
 public typealias EventSink = @Sendable (SyncEvent) -> Void
 
 public struct SyncEngine: Sendable {
-    private let devices: any DeviceBrowsing
-    private let destinations: any DestinationResolving
-    private let indexes: any IndexProviding
+    let devices: any DeviceBrowsing
+    let destinations: any DestinationResolving
+    let indexes: any IndexProviding
+    let writers: any DestinationOpening
 
-    public init(devices: any DeviceBrowsing, destinations: any DestinationResolving, indexes: any IndexProviding) {
+    public init(
+        devices: any DeviceBrowsing,
+        destinations: any DestinationResolving,
+        indexes: any IndexProviding,
+        writers: any DestinationOpening
+    ) {
         self.devices = devices
         self.destinations = destinations
         self.indexes = indexes
+        self.writers = writers
     }
 
     /// Checks the destination, then the device, lists the device and compares against the index.
-    /// Reads only; nothing is written anywhere.
+    /// Writes nothing. The plan keeps the device session open for `execute`; call `close(_:)` when done.
     public func makePlan(
         for task: SyncTask, unlockTimeout: Duration, events: @escaping EventSink
     ) async throws(SyncError) -> SyncPlan {
@@ -71,13 +89,13 @@ public struct SyncEngine: Sendable {
             await session.close()
             throw Self.syncError(error, deviceName: task.device.name)
         }
-        await session.close()
         events(.itemsListed(count: items.count))
 
         let importedKeys: Set<ItemKey>
         do {
             importedKeys = try indexes.existingIndex(at: destination.root)?.importedKeys() ?? []
         } catch {
+            await session.close()
             throw .indexUnreadable(String(describing: error))
         }
 
@@ -88,23 +106,29 @@ public struct SyncEngine: Sendable {
         return SyncPlan(
             taskID: task.id,
             deviceID: task.device.id,
-            destinationRoot: destination.root,
+            destination: destination,
+            session: session,
             items: result.items,
             unavailable: result.unavailable,
             summary: result.summary
         )
     }
 
-    private func fail(_ check: Check, _ error: SyncError, _ events: EventSink) -> SyncError {
+    /// Releases the plan's device session.
+    public func close(_ plan: SyncPlan) async {
+        await plan.session.close()
+    }
+
+    func fail(_ check: Check, _ error: SyncError, _ events: EventSink) -> SyncError {
         events(.checkFailed(check, error))
         return error
     }
 
-    private static func syncError(_ error: DeviceError, deviceName: String) -> SyncError {
+    static func syncError(_ error: DeviceError, deviceName: String) -> SyncError {
         switch error {
         case .notFound, .disconnected: .deviceNotConnected(name: deviceName)
         case .accessRestricted: .deviceLocked(name: deviceName)
-        case .sessionFailed(let reason): .deviceFailed(reason)
+        case .sessionFailed(let reason), .downloadFailed(let reason): .deviceFailed(reason)
         }
     }
 }

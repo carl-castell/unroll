@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import UnrollCore
+import UnrollTestSupport
 
 struct PlanBuilderTests {
     /// A Live Photo with an edit, its AAE, and the edited Live Photo video, as an iPhone reports them.

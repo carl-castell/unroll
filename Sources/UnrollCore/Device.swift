@@ -103,6 +103,7 @@ public enum DeviceError: Error, Sendable, Equatable {
     case accessRestricted(name: String)
     case sessionFailed(String)
     case disconnected
+    case downloadFailed(String)
 }
 
 public protocol DeviceBrowsing: Sendable {
@@ -115,5 +116,10 @@ public protocol DeviceSession: Sendable {
     var info: DeviceInfo { get }
     /// Lists all items. `progress` receives the catalog completion in percent.
     func listItems(progress: @escaping @Sendable (Int) -> Void) async throws(DeviceError) -> [DeviceItem]
+    /// Downloads one listed item into `directory` as `filename` and returns where it was saved.
+    /// Read-only: nothing is deleted or changed on the device. `progress` receives bytes received.
+    func download(
+        _ item: DeviceItem, to directory: URL, as filename: String, progress: @escaping @Sendable (Int64) -> Void
+    ) async throws(DeviceError) -> URL
     func close() async
 }

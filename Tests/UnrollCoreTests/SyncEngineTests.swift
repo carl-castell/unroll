@@ -1,25 +1,31 @@
 import Foundation
 import Testing
 @testable import UnrollCore
+import UnrollTestSupport
 
 struct SyncEngineTests {
     func engine(
         browser: FakeDeviceBrowser, destination: ResolvedDestination? = ssd, index: FakeIndex? = nil
     ) -> SyncEngine {
-        SyncEngine(devices: browser, destinations: FakeDestinations(resolved: destination), indexes: FakeIndexes(index: index))
+        SyncEngine(
+            devices: browser, destinations: FakeDestinations(resolved: destination), indexes: FakeIndexes(index: index),
+            writers: NoWriters()
+        )
     }
 
-    @Test func plansNewItemsAndClosesSession() async throws {
+    @Test func plansNewItemsAndKeepsSessionOpenUntilClosed() async throws {
         let items = [item("1", "IMG_1.HEIC"), item("2", "IMG_2.HEIC")]
         let session = FakeDeviceSession(info: phone, items: items)
         let browser = FakeDeviceBrowser(devices: [phone], session: session)
         let index = FakeIndex(keys: [ItemKey(items[0])!])
 
-        let plan = try await engine(browser: browser, index: index)
-            .makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
+        let engine = engine(browser: browser, index: index)
+        let plan = try await engine.makePlan(for: sampleTask(), unlockTimeout: .zero, events: { _ in })
 
         #expect(plan.items.map(\.item.filename) == ["IMG_2.HEIC"])
         #expect(plan.destinationRoot == ssd.root)
+        #expect(!session.closed)
+        await engine.close(plan)
         #expect(session.closed)
     }
 
