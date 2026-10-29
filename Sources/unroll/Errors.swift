@@ -47,22 +47,34 @@ extension SyncError {
     }
 }
 
-/// Loads a task by name or ID prefix, exiting with code 4 if it can't.
-func loadTask(_ query: String, from store: TaskStore) throws -> SyncTask {
+struct TaskLookupError: Error {
+    let message: String
+}
+
+/// Finds a task by name or ID prefix.
+func findTask(_ query: String, in store: TaskStore) throws(TaskLookupError) -> SyncTask {
     let tasks: [SyncTask]
     do {
         tasks = try store.loadTasks()
     } catch {
-        printError(String(describing: error))
-        throw UnrollExit.invalidTask
+        throw TaskLookupError(message: String(describing: error))
     }
     guard let task = SyncTask.find(query, in: tasks) else {
-        printError(tasks.isEmpty
-            ? "No sync tasks yet. Create one with `unroll tasks add`."
+        throw TaskLookupError(message: tasks.isEmpty
+            ? "No sync tasks yet. Create one with `unroll tasks add`, or run `unroll` in a terminal."
             : "No task named \"\(query)\". Existing tasks: \(tasks.map { "\"\($0.name)\"" }.joined(separator: ", ")).")
-        throw UnrollExit.invalidTask
     }
     return task
+}
+
+/// Loads a task by name or ID prefix, exiting with code 4 if it can't.
+func loadTask(_ query: String, from store: TaskStore) throws -> SyncTask {
+    do {
+        return try findTask(query, in: store)
+    } catch {
+        printError(error.message)
+        throw UnrollExit.invalidTask
+    }
 }
 
 extension ConfirmationReason {

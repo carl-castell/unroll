@@ -7,7 +7,7 @@ struct Unroll: AsyncParsableCommand {
         commandName: "unroll",
         abstract: "Copy only the new photos and videos from your iPhone to an external drive.",
         version: unrollVersion,
-        subcommands: [Run.self, Tasks.self, RebuildIndex.self, Scan.self]
+        subcommands: [Run.self, Status.self, Tasks.self, RebuildIndex.self, Scan.self]
     )
 
     /// Without a command: the interactive menu in a terminal, help everywhere else.
@@ -30,4 +30,6 @@ enum UnrollExit {
     static let invalidTask = ExitCode(4)
     /// A confirmation is needed but there is no terminal to ask in. Pass --yes.
     static let confirmationRequired = ExitCode(5)
+    /// Stopped with Ctrl-C after finishing the current file (the shell's usual code for an interrupt).
+    static let cancelled = ExitCode(130)
 }

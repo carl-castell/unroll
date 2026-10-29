@@ -1,9 +1,10 @@
+import ArgumentParser
 import Foundation
 import UnrollCore
 import UnrollStore
 
 /// Line-oriented output without colors or animation, for pipes, scripts and Shortcuts.
-struct PlainRenderer: Sendable {
+struct PlainRenderer: RunRenderer {
     /// How to show the destination, e.g. "~/unroll-test (Macintosh HD)"; the core reports only the drive.
     var destinationLabel: String?
 
@@ -45,6 +46,22 @@ struct PlainRenderer: Sendable {
         }
     }
 
+    func plan(_ plan: SyncPlan, listItems: Bool) {
+        printPlan(plan, listItems: listItems)
+    }
+
+    func note(_ text: String) {
+        print(text)
+    }
+
+    func failure(_ message: String, code: ExitCode) {
+        printError(message)
+    }
+
+    func result(_ code: ExitCode, log: URL?) {
+        if let log { print("Log: \(Format.path(log))") }
+    }
+
     func printPlan(_ plan: SyncPlan, listItems: Bool) {
         let summary = plan.summary
         guard summary.newCount > 0 else {
@@ -72,7 +89,7 @@ struct PlainRenderer: Sendable {
     }
 
     private func printSummary(_ summary: SyncSummary) {
-        let seconds = Double(summary.duration.components.seconds) + Double(summary.duration.components.attoseconds) / 1e18
+        let seconds = Format.seconds(summary.duration)
         let speed = seconds > 0 ? " at \(Format.bytes(Int64(Double(summary.bytes) / seconds)))/s" : ""
         print("\nImported \(summary.imported) files (\(Format.bytes(summary.bytes)))\(speed) in \(Int(seconds.rounded())) s")
         if summary.duplicates > 0 { print("  \(summary.duplicates) duplicates of files already in the destination") }
@@ -101,6 +118,10 @@ struct PlainRenderer: Sendable {
 enum Format {
     static func bytes(_ count: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
+    }
+
+    static func seconds(_ duration: Duration) -> Double {
+        Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
     }
 
     /// "~/unroll-test", "/Volumes/Photos-SSD/Photos".
