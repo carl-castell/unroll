@@ -7,7 +7,7 @@ struct Unroll: AsyncParsableCommand {
         commandName: "unroll",
         abstract: "Copy only the new photos and videos from your iPhone to an external drive.",
         version: unrollVersion,
-        subcommands: [Scan.self]
+        subcommands: [Run.self, Tasks.self, Scan.self]
     )
 }
 
