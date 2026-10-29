@@ -48,20 +48,16 @@ struct NewTaskScreen: Screen {
     }
 }
 
-struct ManageTasksScreen: Screen {
+/// Edits one task's settings. Back returns to the task's More… menu.
+struct EditTaskScreen: Screen {
     enum Action: Equatable {
-        case name, device, destination, template, versions, photos, notify, delete, back
+        case name, device, destination, template, versions, photos, notify, back
     }
 
-    func run(_ app: AppContext) async -> Next {
-        let tasks = app.loadTasks()
-        guard !tasks.isEmpty else { return .mainMenu }
-        let picked = app.noora.menu(
-            "Which task?", tasks.map { Choice($0.name, Optional($0.id)) } + [Choice("Back", nil)]
-        )
-        guard let id = picked else { return .mainMenu }
+    let taskID: UUID
 
-        while var task = app.task(id) {
+    func run(_ app: AppContext) async -> Next {
+        while var task = app.task(taskID) {
             let choices: [Choice<Action>] = [
                 Choice("Name: \(task.name)", .name),
                 Choice("Device: \(task.device.name)", .device),
@@ -70,7 +66,6 @@ struct ManageTasksScreen: Screen {
                 Choice("Original vs. edited: \(Wizard.label(task.versions))", .versions),
                 Choice("Add to Apple Photos: \(task.addToPhotos ? "yes" : "no")", .photos),
                 Choice("Notification when done: \(task.notify ? "yes" : "no")", .notify),
-                Choice("Delete this task", .delete),
                 Choice("Back", .back),
             ]
             switch app.noora.menu("Edit \"\(task.name)\"", choices) {
@@ -91,21 +86,8 @@ struct ManageTasksScreen: Screen {
                 task.addToPhotos = Wizard.askAddToPhotos(app, current: task.addToPhotos)
             case .notify:
                 task.notify = Wizard.askNotify(app, current: task.notify)
-            case .delete:
-                let confirmed = app.noora.yesOrNoChoicePrompt(
-                    question: "Delete \"\(task.name)\"?", defaultAnswer: false,
-                    description: "Only the task is removed. Files and the index on the destination are kept."
-                )
-                guard confirmed else { continue }
-                do {
-                    try app.delete(task.id)
-                    app.noora.success("Deleted \"\(task.name)\".")
-                } catch {
-                    app.showError("The task couldn't be deleted.", takeaways: [String(describing: error)])
-                }
-                return .mainMenu
             case .back:
-                return .mainMenu
+                return .screen(TaskMoreScreen(taskID: task.id))
             }
             do {
                 try app.save(task)

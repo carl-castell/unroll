@@ -3,38 +3,26 @@ import Noora
 import UnrollCore
 import UnrollStore
 
-struct StatusScreen: Screen {
+/// One task: whether its device and destination are connected, and its recent runs.
+struct HistoryScreen: Screen {
+    let taskID: UUID
+
     func run(_ app: AppContext) async -> Next {
-        let devices = await app.browser.connectedDevices()
+        guard let task = app.task(taskID) else { return .mainMenu }
+        let deviceConnected = await app.browser.connectedDevices().contains { $0.id == task.device.id }
+        let resolved = app.resolver.resolve(task.destination)
+        func mark(_ ok: Bool) -> TerminalText.Component { ok ? .success("✓ connected") : .danger("✗ not connected") }
         print("")
-        print(app.noora.format("\(.muted("Connected devices:")) \(devices.isEmpty ? "none" : devices.map(\.name).joined(separator: ", "))"))
+        print(app.noora.format("\(.primary(task.name))"))
+        print(app.noora.format("  \(.muted("Device"))       \(task.device.name)  \(mark(deviceConnected))"))
+        print(app.noora.format("  \(.muted("Destination"))  \(Format.destination(task.destination, resolver: app.resolver))  \(mark(resolved != nil))"))
+        print(app.noora.format("  \(.muted("Last run"))     \(task.lastRun?.formatted(date: .abbreviated, time: .shortened) ?? "never")"))
 
-        let tasks = app.loadTasks()
-        guard !tasks.isEmpty else {
-            app.noora.info("No sync tasks yet.")
-            app.noora.waitForBack()
-            return .mainMenu
-        }
-        let connected = Set(devices.map(\.id))
-        app.noora.table(
-            headers: ["Task", "Device", "Destination", "Last run"],
-            rows: tasks.map { task in
-                let destination = app.resolver.resolve(task.destination) != nil
-                return [
-                    task.name,
-                    "\(connected.contains(task.device.id) ? "✓" : "✗") \(task.device.name)",
-                    "\(destination ? "✓" : "✗") \(Format.destination(task.destination, resolver: app.resolver))",
-                    task.lastRun?.formatted(date: .abbreviated, time: .shortened) ?? "never",
-                ]
-            }
-        )
-
-        for task in tasks {
-            guard let destination = app.resolver.resolve(task.destination),
-                  let index = try? SQLiteIndex.openExisting(destinationRoot: destination.root, readOnly: true),
-                  let runs = try? index.runs(limit: 5), !runs.isEmpty else { continue }
+        if let destination = resolved,
+           let index = try? SQLiteIndex.openExisting(destinationRoot: destination.root, readOnly: true),
+           let runs = try? index.runs(limit: 10), !runs.isEmpty {
             let total = (try? index.meta().itemCount) ?? 0
-            print(app.noora.format("\n\(.primary(task.name)) \(.muted("— \(total) files in \(Format.destination(destination.root, volumeName: destination.volumeName))"))"))
+            print(app.noora.format("\n\(.muted("\(total) files in the destination. Recent runs:"))"))
             app.noora.table(
                 headers: ["Run", "Imported", "Size", "Result"],
                 rows: runs.map { run in
@@ -46,9 +34,11 @@ struct StatusScreen: Screen {
                     ]
                 }
             )
+        } else if resolved != nil {
+            print(app.noora.format("\n\(.muted("No runs into this destination yet."))"))
         }
         app.noora.waitForBack()
-        return .mainMenu
+        return .screen(TaskMoreScreen(taskID: task.id))
     }
 
     static func label(_ run: RunRecord) -> String {
@@ -65,22 +55,20 @@ struct StatusScreen: Screen {
 }
 
 struct RebuildScreen: Screen {
+    let taskID: UUID
+
     func run(_ app: AppContext) async -> Next {
-        let tasks = app.loadTasks()
-        let id: UUID? = tasks.count == 1
-            ? tasks[0].id
-            : app.noora.menu("Rebuild the index of which task?", tasks.map { Choice($0.name, Optional($0.id)) } + [Choice("Back", nil)])
-        guard let id, let task = tasks.first(where: { $0.id == id }) else { return .mainMenu }
+        guard let task = app.task(taskID) else { return .mainMenu }
         guard let destination = app.resolver.resolve(task.destination) else {
             app.showError(SyncError.destinationNotConnected(volumeName: task.destination.volumeName).message)
-            return .mainMenu
+            return .screen(MainMenuScreen(taskID: task.id))
         }
         let path = Format.destination(destination.root, volumeName: destination.volumeName)
         let confirmed = app.noora.yesOrNoChoicePrompt(
             question: "Rebuild the index of \"\(task.name)\" from the files in \(path)?", defaultAnswer: false,
             description: "Files are only read, never changed. The run history is reset and the next run asks once."
         )
-        guard confirmed else { return .mainMenu }
+        guard confirmed else { return .screen(TaskMoreScreen(taskID: task.id)) }
 
         do {
             let result = try await app.noora.progressStep(
@@ -96,15 +84,17 @@ struct RebuildScreen: Screen {
         } catch {
             app.show(error)
         }
-        return .mainMenu
+        return .screen(MainMenuScreen(taskID: task.id))
     }
 }
 
 struct HelpScreen: Screen {
+    var returnTo: UUID?
+
     func run(_ app: AppContext) async -> Next {
         while true {
             let choices = HelpTopic.allCases.map { Choice($0.title, Optional($0)) } + [Choice("Back", nil)]
-            guard let topic = app.noora.menu("Help", choices) else { return .mainMenu }
+            guard let topic = app.noora.menu("Help", choices) else { return .screen(HelpAndSettingsScreen(returnTo: returnTo)) }
             print("")
             print(topic.text)
             print(app.noora.format("\(.muted("Also available as: unroll help \(topic.rawValue)"))"))
@@ -158,6 +148,8 @@ struct SettingsScreen: Screen {
         case template, versions, notify, openConfig, back
     }
 
+    var returnTo: UUID?
+
     func run(_ app: AppContext) async -> Next {
         while true {
             var settings = app.store.loadSettings()
@@ -176,7 +168,7 @@ struct SettingsScreen: Screen {
                 try? FileManager.default.createDirectory(at: app.store.directory, withIntermediateDirectories: true)
                 _ = try? Process.run(URL(filePath: "/usr/bin/open"), arguments: [app.store.directory.path])
                 continue
-            case .back: return .mainMenu
+            case .back: return .screen(HelpAndSettingsScreen(returnTo: returnTo))
             }
             do {
                 try app.store.saveSettings(settings)
